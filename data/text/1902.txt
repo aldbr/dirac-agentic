@@ -1,0 +1,163 @@
+Addressing Scalability with Message Queues: Architecture
+and Use Cases for DIRAC Interware
+Wojciech Krzemien1,∗,∗∗, Federico Stagni2, Christophe Haen2, Zoltan Mathe2, Andrew
+McNab3, and Milosz Zdybal4
+1High Energy Physics Division, National Centre for Nuclear Research, PL-05-400 Otwock, Swierk,
+Poland
+2CERN, EP Department, European Organization for Nuclear Research, Switzerland
+3The University of Manchester, Oxford Road, Manchester, M13 9PL, UK
+4Institute of Nuclear Physics PAN, Krakow, Poland
+Abstract.
+The Message Queue (MQ) architecture is an asynchronous com-
+munication scheme that provides an attractive solution for certain scenarios in a
+distributed computing model. The introduction of MQ as an intermediate com-
+ponent in-between the interacting processes allows to decouple the end-points
+making the system more ﬂexible and providing high scalability and redundancy.
+DIRAC is a general-purpose interware software for distributed computing sys-
+tems, which oﬀers a common interface to a number of heterogeneous providers
+and guarantees transparent and reliable usage of the resources. The DIRAC
+platform has been adapted by several scientiﬁc projects, including High Energy
+Physics communities like LHCb, the Linear Collider and Belle2.
+A Message Queue generic interface has been incorporated into the DIRAC
+framework to help solving the scalability challenges that must be addressed dur-
+ing LHC Run3, starting in 2021. It allows to use the MQ scheme for a message
+exchange among the DIRAC components or to communicate with third-party
+services. Within this contribution we describe the integration of MQ systems
+with DIRAC and several use cases are shown. Message Queues are foreseen to
+be used in the pilot logging system, and as a backbone of the DIRAC component
+logging system and monitoring.
+1 Introduction
+We live in a world of large data streams, which are constantly provided by various sources
+and need to be processed eﬃciently. This massive amount of data requires the use of all
+available processing resources together with an eﬃcient computing model, which is scalable
+and reliable.
+High Energy Physics (HEP) communities face similar challenges, since the data produced
+by the experiments’ detectors and by the Monte Carlo simulation jobs form a signiﬁcant
+data stream that must be processed in a coordinated manner [1]. For this purpose, several
+approaches have been proposed, among them the DIRAC framework [2, 3]. DIRAC, the
+∗e-mail: wojciech.krzemien@ncbj.gov.pl
+∗∗On behalf of the LHCb collaboration.
+arXiv:1902.09645v1  [cs.DC]  25 Feb 2019
+
+Figure 1. Message-queueing asynchronous communication model. Producers send messages that are
+stored by the intermediate component (Message Queue). The messages can be retrieved by consumers.
+The Message Queue decouples interacting entities.
+interware, is an open-source software platform that provides the interface between the end-
+user and the underlying resources.
+DIRAC implements a ﬂexible distributed agent model that assures scalable processing
+over heterogeneous environments. The DIRAC interware was adopted as a computing solu-
+tion by the HEP experiments like LHCb and Belle2, and also by many other projects which
+use it as a platform to perform advanced GRID operations.
+Message Queue (MQ) architectures implement asynchronous communication schemes
+which ﬁt very well to distributed models based on microservices and provide several advan-
+tages, including good scalability and performance. This paper is dedicated to the incorpora-
+tion of existing MQ solutions in DIRAC.
+The paper is organized as follows: First, in section 2, the concept of Message Queue
+communication model is introduced. Section 3 explains the details of Message Queue module
+implementation into the DIRAC framework. Section 4 presents several use cases. Finally, a
+summary is given in section 5.
+2 Message Queue Concepts
+MQ communication is based on the idea of introducing an intermediate component (queue)
+in-between interacting entities, which are typically called consumer and producer (see Fig. 1).
+A queue acts as a buﬀer that stores messages sent by producers. This separation allows
+the communication to become asynchronous as the consumer and producer do not need to
+interact at the same time. This approach has several advantages: it allows to decouple the
+end-points making the system more ﬂexible and providing high scalability and redundancy.
+In some MQ systems additional mechanisms are implemented to ensure, e.g., resilience or
+message delivery guarantee. Also, MQ architecture introduces ﬂexibility at the technology
+level, permitting to interconnect heterogeneous environments.
+The MQ paradigm is applicable at very diﬀerent levels. It may serve as an inter-process
+communication mechanism acting within one operating system as well as a way of connect-
+ing the processes or services in distributed computing models. Various message-oriented
+middlewares (brokers) have been developed. Among them, open-source solutions such as
+RabbitMQ [4], ActiveMQ [5] or Kafka [6] are proven technologies widely used nowadays.
+
+Figure 2. In DIRAC, the MQ conﬁguration is deﬁned as resource sections set through a DIRAC Con-
+ﬁguration Service (not in the ﬁgure). Each section is uniquely identiﬁed by the pseudo-url string, e.g.,
+“mardirac3.in2p3.fr::Queue::Q2”, which can be provided as an argument to the factory methods create-
+Consumer() and createProducer() responsible for the creation of producer and consumer instances. To
+improve the performance, the same connections can be reused by several consumers or producer. This
+functionality is provided by MQConnectionManager module. The purpose of MQConnector interfaces
+is to provide a mechanism that accommodates various communication protocols e.g. STOMP [8]. More
+details are given in the text.
+3 Message Queues in DIRAC
+A generic MQ interface has been introduced in DIRAC version 6, release 17. It allows to
+connect DIRAC components to (external) MQ services and to exchange messages with them.
+An access to the MQ services is realised via logical Queues or Topics [7]. The architecture
+of the MQ interface is presented in Fig. 2.
+The MQCommunication interface provides factory methods to create MQConsumer and
+MQProducer instances which can be used to exchange messages with the MQ. The only
+requirement for the message format is that it must conform with a json structure.
+The
+conﬁguration settings are loaded from the DIRAC Conﬁguration Service, identiﬁed by the
+pseudo-url string, e.g., “mardirac3.in2p3.fr::Queue::Q2”, which is provided as an argument
+to the factory methods. MQConnectionManager manages internally the list of open con-
+nections and assures thread-safe access. The same connections can be reused by several
+consumers/producers to improve the performance. The specialisation of the MQConnec-
+tor then provides an interface mechanism tailored to a chosen MQ communication proto-
+col. Currently, the handler implementation for Simple Text Orientated Messaging Protocol
+(STOMP) [8] standard is available. Both user-password and SSL certiﬁcates authentication
+mechanisms are supported. The implementation was tested with two message brokers: Rab-
+bitMQ [4] and ActiveMQ [5]. The existing scheme can be easily extended by adding a
+specialized module, e.g., to support more MQ protocol types.
+4 Use Cases
+In this section we brieﬂy describe several use cases in which the MQ components are being
+used.
+
+Figure 3. Architecture for the universal pilot logging system. The MQ broker (in the scheme Ac-
+tiveMQ [5]) collects the log information provided by the pilot. The transfer is performed via the Tor-
+nado server [13], that assures both authentication and authorization. The MQ consumers receive the
+logs that are ﬁnally stored by a dedicated DIRAC service.
+The MQ has been used as part of the perfSONAR-DIRAC bridge architecture that is
+used for network performance monitoring, providing the metrics, and for network problem
+identiﬁcation. More details can be found in [9, 10].
+The DIRAC system is installed on worker nodes (WN) by distributed agents called pi-
+lots [11, 12]. The development of a universal and scalable logging system for all pilots is also
+foreseen to accommodate the use of the MQ (see Fig. 3). Due to the variability of WN types,
+it is challenging to provide a generic solution that would provide information about possi-
+ble failures during, e.g., the installation or conﬁguration phases. The proposed architecture is
+shown in Fig. 3. The Pilot Loggers are components of the new DIRAC pilot generation. They
+are responsible for sending the logs to a dedicated system. The development is ongoing.
+MQ is also used as the main buﬀer for internal DIRAC services‘ logging systems. This
+system is currently in production used together with the CERN ActiveMQ system. Finally,
+MQ is implemented as a failover mechanism for the ElasticSearch [14] in DIRAC monitor-
+ing services [15]. The monitoring system is dedicated to monitoring various components of
+DIRAC. It is based on Elasticsearch distributed search and a NoSQL analytics database. The
+implemented failover mechanism allows to redirect the logs to a dedicated MQ server. This
+solution has been tested with the RabbitMQ server.
+5 Summary
+The MQ generic interface has been successfully introduced in the DIRAC framework. It is
+being used as an important part of the DIRAC service logging system, as a failover mecha-
+nism for the DIRAC Monitoring System, and it is foreseen to play an important role in the
+universal pilot logging architecture being developed.
+References
+[1] F. Stagni, A. Tsaregorodtsev, C. Haen, P. Charpentier, Z. Mathe, W. Krzemien, V. Ro-
+manovskiy, These proceedings (2019)
+
+[2] F. Stagni, A. Tsaregorodtsev, M.U. Garcia, P. Charpentier, K.D. Ciba, Z. Mathe,
+A. Sailer, R. Graciani, C. Haen, W. Krzemien et al., Diracgrid/dirac: v6r20p15 (2018),
+https://doi.org/10.5281/zenodo.1451647
+[3] A. Casajus, K. Ciba, V. Fernandez, R. Graciani, V. Hamar, V. Mendez, S. Poss, M. Sa-
+punov, F. Stagni, A. Tsaregorodtsev et al., Journal of Physics: Conference Series 396,
+032107 (2012)
+[4] https://www.rabbitmq.com/
+[5] http://activemq.apache.org/
+[6] https://kafka.apache.org/
+[7] G. Hohpe,
+B. Woolfe,
+Enterprise Integration Patterns:
+Designing,
+Building,
+and Deploying Messaging Solutions (Addison-Wesley Professional, 2003), ISBN
+19780321200686
+[8] https://stomp.github.io/stomp-specification-1.2.html
+[9] https://www.perfsonar.net/
+[10] S. McKee, Journal of Physics: Conference Series 898, 022001 (2017)
+[11] F. Stagni, A. Tsaregorodtsev, A. McNab, C. Luzzi, Journal of Physics: Conference
+Series 664, 062061 (2015)
+[12] F. Stagni, A. McNab, C. Luzzi, W. Krzemien, Journal of Physics: Conference Series
+898, 092024 (2017)
+[13] https://www.tornadoweb.org
+[14] https://www.elastic.co/products/elasticsearch
+[15] Z. Mathe, A.C. Ramo, F. Stagni, L. Tomassetti, Journal of Physics: Conference Series
+664, 042036 (2015)

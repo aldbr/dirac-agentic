@@ -1,0 +1,182 @@
+[
+  {
+    "question": "What does the Transformation System do?",
+    "answer": "It automates common tasks related to production activities."
+  },
+  {
+    "question": "How does the Transformation System interact with the Workload Management System?",
+    "answer": "The Transformation System interacts with the Workload Management System through the TransformationDB component, providing services such as transformation managers and database servers."
+  },
+  {
+    "question": "What are the three types of transformation?",
+    "answer": "There are three types of transformations: Data Processing, Data Manipulation, and Input Data Retrieval."
+  },
+  {
+    "question": "What does the Transformation System provide as input files?",
+    "answer": "As input files, they include tasks, inputs, transformation files, transformation file tasks, transformation log, transformation tasks, transformation output data query, transformation logs, transformation tasks, transformation inputs data queries."
+  },
+  {
+    "question": "How do I start creating a transformation?",
+    "answer": "First, create a transformation object using the `TransformationClient` API."
+  },
+  {
+    "question": "What is the purpose of the `setTransformationGroupName` method?",
+    "answer": "It sets the name of the group that the transformation belongs to."
+  },
+  {
+    "question": "What is the purpose of the `addFilesToTransformation` method?",
+    "answer": "It adds files to a transformation based on their file paths."
+  },
+  {
+    "question": "Can I force a transformation to stop without stopping it?",
+    "answer": "No, stopping a transformation will kill it and prevent it from completing."
+  },
+  {
+    "question": "How can I archive a transformed file?",
+    "answer": "Use the `archiveTransformedFile` method provided by the `Transformation` class."
+  },
+  {
+    "question": "Which transformation types does the workflow task agent support?",
+    "answer": "MCSimulation, MCSimulation_BigVO"
+  },
+  {
+    "question": "What type of credential do the owners of transformations need to submit jobs or requests?",
+    "answer": "Transformations can be submitted without any credentials."
+  },
+  {
+    "question": "How can I create a dedicated instance for a large number of jobs or requests within a multi VO configuration?",
+    "answer": "Create instances using different transformation types."
+  },
+  {
+    "question": "Describe the purpose of the 'Manage Remote Configuration' feature?",
+    "answer": "This feature provides access to manage remote configurations on DIRAC servers, allowing administrators to view, download, modify, and commit configuration files."
+  },
+  {
+    "question": "What does the 'Modify Actions' section do?",
+    "answer": "The Modify Actions section includes actions such as re-downloading configuration data from the server, showing differences with the current configuration, and committing the new configuration."
+  },
+  {
+    "question": "Module:",
+    "answer": "this"
+  },
+  {
+    "question": "LogLevel:",
+    "answer": "ERROR,INFO,NOTICE,VERBOSE,DEBUG"
+  },
+  {
+    "question": "LogBackends:",
+    "answer": "stdout, ESserver"
+  },
+  {
+    "question": "MaxThreads:",
+    "answer": "15"
+  },
+  {
+    "question": "MinThreads:",
+    "answer": "1"
+  },
+  {
+    "question": "MaxWaitingPetitions:",
+    "answer": "500"
+  },
+  {
+    "question": "Port:",
+    "answer": "8443"
+  },
+  {
+    "question": "Protocol:",
+    "answer": "http"
+  },
+  {
+    "question": "HandlerPath:",
+    "answer": "DIRAC.WorkloadManagementSystem.Service.JobManager"
+  },
+  {
+    "question": "Handling errors within DIRAC",
+    "answer": "The choice was made not to use exception within DIRAC. The return types are however standardized."
+  },
+  {
+    "question": "Standardizing return types",
+    "answer": "There are two problems with this approach:"
+  },
+  {
+    "question": "What does a pilot represent?",
+    "answer": "A script that sets up, configures, and runs DIRAC jobs on various computing resources."
+  },
+  {
+    "question": "How do pilots fit into the DIRAC architecture?",
+    "answer": "Pilots are a standardized piece of code that can be run on any computing element. They provide a framework for DIRAC jobs to be executed and managed."
+  },
+  {
+    "question": "Can pilots be used in multiple contexts without changing their logic?",
+    "answer": "Yes, the same pilot script can be used in multiple contexts without altering its logic. However, it is important to ensure compatibility between different computing environments."
+  },
+  {
+    "question": "What is the purpose of the WMSDashboard dashboard?",
+    "answer": "A dashboard for WMSHistory monitoring"
+  },
+  {
+    "question": "Where can I find the WMSDashboard dashboard?",
+    "answer": "Here <https://github.com/DIRACGrid/DIRAC/tree/integration/dashboards/WMS>"
+  },
+  {
+    "question": "FailedJobStatus",
+    "answer": "MinorStatus if Executor fails the job"
+  },
+  {
+    "question": "CheckFileMetadata",
+    "answer": "Boolean, check file metadata; Will ignore Failover SE files"
+  },
+  {
+    "question": "What does the 'CleanUpFlag' parameter do?",
+    "answer": "A flag indicating whether to clean up resources after the job has finished, useful for debugging or cleanup purposes."
+  },
+  {
+    "question": "What does the 'BufferLimit' parameter set to when it's set to False?",
+    "answer": "This value represents the maximum amount of data that can be sent over the network before the connection is closed."
+  },
+  {
+    "question": "How many minutes does the 'DefaultErrorFile' parameter specify as the minimum time between jobs?",
+    "answer": "This setting specifies the minimum time (in minutes) between two jobs."
+  },
+  {
+    "question": "What does the 'Resources/IdProviders' section contain?",
+    "answer": "It contains the list of supported identity providers like OAuth2, CheckIn, and IAM."
+  },
+  {
+    "question": "Which IDP types are described in the 'Resources/IdProviders' section?",
+    "answer": "The supported IDPs include OAuth2, CheckIn, and IAM."
+  },
+  {
+    "question": "What is the purpose of installing the WorkloadManagement system components?",
+    "answer": "To create and submit a simple job that will generate and execute tasks"
+  },
+  {
+    "question": "Which service do you need to start first when creating a job?",
+    "answer": "The WorkloadManagement Service"
+  },
+  {
+    "question": "What is the purpose of the Transformation System?",
+    "answer": "It automates common tasks related to production activities."
+  },
+  {
+    "question": "What are the main types of transformations?",
+    "answer": "They include Data Processing, Data Manipulation, and Replication."
+  },
+  {
+    "question": "How does the Transformation System interact with the Workload Management System?",
+    "answer": "The TS interacts with the Workload Management System for Job Productions transformations through the TransformationDB service and with the Request Management System for Data Manipulation transformations through the TransformationClient."
+  },
+  {
+    "question": "How to derive a production?",
+    "answer": "When a production is running, and a new version of the application is released, which should substitute the current one. So, the input files are the same, but we want that the input files that have not yet been processed."
+  },
+  {
+    "question": "What does the code do?",
+    "answer": "It sets up a workflow system for managing transformations between different versions of applications."
+  },
+  {
+    "question": "How does it work?",
+    "answer": "The code creates instances of Transformations, assigns them roles based on their dependencies, and manages files and filesets."
+  }
+]
