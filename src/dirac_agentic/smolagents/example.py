@@ -4,6 +4,7 @@ from smolagents import CodeAgent, DuckDuckGoSearchTool, tool, InferenceClientMod
 
 login(os.environ["HF_TOKEN"])
 
+
 # Tool to suggest a menu based on the occasion
 @tool
 def suggest_menu(occasion: str) -> str:
@@ -26,7 +27,13 @@ def suggest_menu(occasion: str) -> str:
         return "Custom menu for the butler."
 
 
-agent = CodeAgent(tools=[DuckDuckGoSearchTool(), suggest_menu], model=InferenceClientModel(), additional_authorized_imports=["datetime"])
+agent = CodeAgent(
+    tools=[DuckDuckGoSearchTool(), suggest_menu],
+    model=InferenceClientModel(),
+    additional_authorized_imports=["datetime"],
+)
 
-agent.run("Search for the best music recommendations for a party at the Wayne's mansion.")
+agent.run(
+    "Search for the best music recommendations for a party at the Wayne's mansion."
+)
 agent.run("Prepare a formal menu for the party.")
