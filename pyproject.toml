@@ -12,7 +12,7 @@ dependencies = [
   "faiss-cpu",
   "fitz",
   "ipython>=8.32.0",
-  "mcp4py[fast]>=0.5.2",
+  "mcp[cli]",
   "peft",
   "pygithub>=2.5.0",
   "pymupdf>=1.25.2",

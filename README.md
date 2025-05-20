@@ -1,5 +1,5 @@
 <p align="center">
-  <img alt="Dirac HF Logo" src="public/CWLDiracX.png" width="300" >
+  <img alt="Dirac HF Logo" src="public/dirac_agentic.png" width="300" >
 </p>
 
 # Dirac Agent
