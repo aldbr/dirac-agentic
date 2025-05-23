@@ -3,7 +3,7 @@ import re
 from pathlib import Path
 import fitz
 
-from dirac_agentic.log import logger as logging
+from .log import logger as logging
 
 logger = logging.getChild(__name__)
 _RST_RE = re.compile(r"^\s*\.\. .*::.*$", re.MULTILINE)

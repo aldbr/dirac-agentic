@@ -4,7 +4,7 @@ import shutil
 import subprocess
 import requests
 
-from dirac_agentic.log import logger as logging
+from .log import logger as logging
 
 logger = logging.getChild(__name__)
 

@@ -2,39 +2,83 @@
   <img alt="Dirac HF Logo" src="public/dirac_agentic.png" width="300" >
 </p>
 
-# Dirac Agent
+# Dirac Agentic
 
-This Python prototype is an attempt to produce a Dirac AI Agent.
+This repository is now split into three subprojects:
 
-## Installation
+- **dirac-mcp**: MCP server and related code
+- **dirac-agents**: Agents and tool code
+- **dirac-model**: Model finetuning tools (based on papers)
 
-**Development requirements**
 
-- Python 3.11+
-- [uv](https://github.com/astral-sh/uv) (`pip install uv`)
-- (optional) [pre-commit](https://pre-commit.com/)
-
-1. Clone the repository
-2. Install the dependencies:
-
-  ```bash
-  uv pip install -r pyproject.toml
-  ```
-3. (Optional) Install the pre-commit hooks:
-
-```bash
-pre-commit install
+```mermaid
+---
+config:
+  layout: elk
+---
+flowchart TD
+ subgraph Models["Models"]
+        any-model["Qwen, Mistral, OpenAI, DeepSeek, ..."]
+        papers["Dirac research papers"]
+        dirac-model["**dirac-model** based on long term data - research papers"]
+  end
+ subgraph Agents["Agents"]
+        frameworks["Frameworks - *Smolagents, LlamaIndex, LangGraph, ...*"]
+        dirac-agent1["**dirac-operator** leverages Dirac, Grafana tools"]
+        dirac-agent2["**dirac-developer** leverages Dirac, Github tools"]
+        dirac-agent3["**dirac-doc** leverages Dirac, DuckDuckGo tools"]
+  end
+ subgraph MCP_Servers["MCP_Servers"]
+        sdk["Anthropic MCP SDK"]
+        dirac-mcp["**dirac-mcp** exposes tools to interact with Dirac"]
+        k8s-mcp["K8s-mcp"]
+        duckduckgo-mcp["DuckDuckGo-mcp"]
+  end
+    dirac-model -. based on .-> any-model
+    dirac-model -. finetuned with .-> papers
+    dirac-agent1 -. based on .-> frameworks
+    dirac-agent2 -. based on .-> frameworks
+    dirac-agent3 -. based on .-> frameworks
+    Models -- Provides domain knowledge, LLM completions --> Agents
+    Agents -- Connects to, orchestrates, and calls tools on --> MCP_Servers
+    dirac-mcp -. uses .-> dirac["DiracX Client"]
+    dirac-mcp -. based on .-> sdk
+    duckduckgo-mcp -. based on .-> sdk
+    k8s-mcp -. based on .-> sdk
+    papers@{ shape: cyl}
+     papers:::Rose
+     dirac-model:::Peach
+     dirac-agent1:::Peach
+     dirac-agent2:::Peach
+     dirac-agent3:::Peach
+     dirac-mcp:::Peach
+     dirac:::Rose
+    classDef Peach stroke-width:1px, stroke-dasharray:none, stroke:#FBB35A, fill:#FFEFDB, color:#8F632D
+    classDef Rose stroke-width:1px, stroke-dasharray:none, stroke:#FF5978, fill:#FFDFE5, color:#8E2236
 ```
 
-## Set Up
 
-### Starting the MCP Inspector:
 
-```bash
-mcp dev src/dirac_agentic/mcp/diracx.py
-```
+## Development Setup
 
-### Interacting with diracx through Github Copilot:
+Each subproject has its own environment. We recommend using [pixi](https://prefix.dev/docs/pixi/) for environment management.
+
+### 1. dirac-mcp
+
+This subproject contains the MCP server and related code. **To interact with the MCP server, you must have a valid `diracx` access token** (usually set in your environment as `DIRACX_CREDENTIALS_PATH` or via your DiracX login). This token is required for authentication and to access the underlying DiracX instance.
+
+#### Contribute
+
+1. Open the `dirac-mcp` folder.
+2. Run `pixi install` to create the environment.
+4. Run your MCP server as needed, e.g.:
+
+   ```bash
+   pixi run dirac-mcp
+   ```
+
+
+#### Run in Copilot Chat
 
 - Open the chat
 - Select the `Agent` mode
@@ -47,35 +91,63 @@ mcp dev src/dirac_agentic/mcp/diracx.py
 
   ```json
   {
-      "mcp": {
-          "servers": {
-              "diracx": {
-                  "type": "stdio",
-                  "command": "uv",
-                  "args": [
-                      "run",
-                      "--with",
-                      "mcp",
-                      "mcp",
-                      "run",
-                      "Documents/dirac-agentic/src/dirac_agentic/mcp/diracx.py"
-                  ],
-                  "env": {
-                      "DIRACX_URL": "<diracx instance>"
-                  }
-
-              }
+    "mcp": {
+      "servers": {
+        "diracx": {
+          "type": "stdio",
+          "command": "pixi",
+          "args": [
+            "run",
+            "--manifest-path",
+            "/home/aldbr/Documents/dirac-agentic/pixi.toml",
+            "dirac-mcp"
+          ],
+          "env": {
+            "DIRACX_URL": "https://diracx-cert.app.cern.ch"
           }
+        }
       }
+    }
   }
   ```
 
 - Log in your diracx instance
 - Start chatting about diracx
 
-## Usage
-
-**Examples**
-
+**Examples:**
 - I want to create a diracx job that executes `echo "hello world". Can you do it for me?
 - Can you give me the latest failed jobs from diracx?
+
+### 2. dirac-agents
+
+This subproject is focused on building agents that interact with existing MCP servers (such as `dirac_mcp`) and other components. It provides agent logic, tool integration, and the ability to connect to and orchestrate workflows using the MCP protocol. You can use it to build advanced agents that leverage both the MCP server and additional tools or APIs.
+
+#### Contribute
+
+1. Open the `dirac-agents` folder.
+2. Run `pixi install` to create the environment.
+
+#### Leverage `dirac_mcp` in your agent
+
+The `dirac_agents` code can connect to an MCP server running from `dirac_mcp` using the MCP protocol. For example, see `client.py` in `dirac_agents`:
+
+```python
+from smolagents import ToolCollection, CodeAgent, InferenceClientModel
+from mcp.client.stdio import StdioServerParameters
+
+model = InferenceClientModel()
+server_parameters = StdioServerParameters(command="uv", args=["run", "server.py"])
+
+with ToolCollection.from_mcp(server_parameters, trust_remote_code=True) as tool_collection:
+    agent = CodeAgent(tools=[*tool_collection.tools], model=model)
+    agent.run("Can you submit a hello world job on diracx for me?")
+```
+
+This allows you to develop and run your MCP server and agents independently, but use them together for end-to-end workflows.
+
+### 3. dirac-model
+
+This subproject contains code and tools for finetuning language models, with the goal of integrating general scientific knowledge (from papers and documentation) into the models. The resulting models can be used to enhance agent capabilities and provide more domain-specific knowledge. (Deployment instructions and advanced usage will be added in the future.)
+
+1. Open the `dirac-agents` folder.
+2. Run `pixi install` to create the environment.

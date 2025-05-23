@@ -25,8 +25,8 @@ from rich.progress import (
     TimeRemainingColumn,
 )
 
-from dirac_agentic.rag_prep import converter, downloader
-from dirac_agentic.log import logger
+from . import converter, downloader
+from .log import logger
 
 console = Console()
 app = typer.Typer(add_completion=False)

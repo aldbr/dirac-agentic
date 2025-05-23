@@ -1,0 +1,10 @@
+[project]
+name = "dirac-mcp"
+version = "0.1.0"
+description = "MCP server and related code for Dirac Agentic"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "diracx",
+  "mcp[cli]"
+]
