@@ -1,13 +1,9 @@
 [project]
 name = "dirac-model"
 version = "0.1.0"
-description = "Model finetuning and RAG tools for Dirac Agentic"
+description = "Model finetuning"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-  "typer",
-  "rich",
-  "fitz",
-  "requests",
-  # Add other dependencies as needed
+  "dirac-dataset",
 ]

@@ -28,7 +28,7 @@ flowchart TD
         dirac-agent2["**dirac-developer** leverages Dirac, Github tools"]
         dirac-agent3["**dirac-doc** leverages Dirac, DuckDuckGo tools"]
   end
- subgraph MCP_Servers["MCP_Servers"]
+ subgraph MCP_Servers["MCP Servers"]
         sdk["Anthropic MCP SDK"]
         dirac-mcp["**dirac-mcp** exposes tools to interact with Dirac"]
         k8s-mcp["K8s-mcp"]
@@ -99,7 +99,7 @@ This subproject contains the MCP server and related code. **To interact with the
           "args": [
             "run",
             "--manifest-path",
-            "/home/aldbr/Documents/dirac-agentic/pixi.toml",
+            "/path/to/dirac-agentic/pixi.toml",
             "dirac-mcp"
           ],
           "env": {
