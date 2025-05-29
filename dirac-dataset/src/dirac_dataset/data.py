@@ -16,6 +16,8 @@ import shutil
 from pathlib import Path
 from typing import List
 
+from datasets import Dataset, DatasetDict
+from pydantic import BaseModel
 import typer
 from rich.console import Console
 from rich.progress import (
@@ -37,11 +39,22 @@ app = typer.Typer(add_completion=False)
 # -----------------------------------------------------------------------------
 
 
-def _load_urls(path: Path) -> List[str]:
-    """Accept *.json (list) or *.txt (one URL per line)."""
-    if path.suffix == ".json":
-        return json.loads(path.read_text())
-    return [line.strip() for line in path.read_text().splitlines() if line.strip()]
+class Repo(BaseModel):
+    """Model for repository URLs."""
+
+    url: str
+    branch: str = "main"
+
+
+def _load_repos(path: Path) -> List[Repo]:
+    """Accept *.json (dict or list) or *.txt (one URL per line). Returns a list of Repo objects."""
+    data = json.loads(path.read_text())
+    return [Repo(**repo) for repo in data.values()]
+
+
+def _load_pdfs(path: Path) -> List[str]:
+    """Accept *.json (list of URLs) or *.txt (one URL per line). Returns a list of PDF URLs."""
+    return json.loads(path.read_text())
 
 
 def _progress() -> Progress:
@@ -54,12 +67,12 @@ def _progress() -> Progress:
 
 
 # -----------------------------------------------------------------------------
-# single command
+# commands
 # -----------------------------------------------------------------------------
 
 
-@app.command("load-data")
-def load_data(
+@app.command("gen-dataset")
+def generate_dataset(
     repos_file: Path = typer.Option(
         ..., "--repos-file", "-r", exists=True, help="TXT/JSON with repo URLs"
     ),
@@ -94,17 +107,21 @@ def load_data(
     pdf_tmp = out.parent / "tmp_pdfs"
     out.mkdir(parents=True, exist_ok=True)
 
-    repo_urls = _load_urls(repos_file)
-    pdf_urls = _load_urls(pdfs_file)
+    repos = _load_repos(repos_file)
+    pdf_urls = _load_pdfs(pdfs_file)
 
     # -------------------------------------------------------------------------
     # download PDFs
     # -------------------------------------------------------------------------
     with _progress() as p:
         pdf_task = p.add_task("[magenta]Downloading PDFs", total=len(pdf_urls))
+        pdf_id = 0
         for url in pdf_urls:
             try:
-                downloader.download_pdf(url, pdf_tmp)
+                downloader.download_pdf(
+                    url, pdf_tmp, local_name=f"article_{pdf_id}.pdf"
+                )
+                pdf_id += 1
             except Exception as e:
                 console.print(f"[red]Error downloading or copying PDF:[/]\n{e}")
                 continue
@@ -118,13 +135,15 @@ def load_data(
     md_docs = []
     issue_and_pr_docs = []
     with _progress() as p:
-        doc_task = p.add_task("[cyan]Loading docs/issues/PRs", total=len(repo_urls))
-        for url in repo_urls:
+        doc_task = p.add_task("[cyan]Loading docs/issues/PRs", total=len(repos))
+        for repo in repos:
             try:
-                md_docs.extend(loader.doc_loader(url))
-                issue_and_pr_docs.extend(loader.git_metadata_loader(url))
+                md_docs.extend(loader.doc_loader(repo.url, branch=repo.branch))
+                issue_and_pr_docs.extend(loader.git_metadata_loader(repo.url))
             except Exception as e:
-                console.print(f"[red]Error loading docs/issues/PRs for {url}:[/]\n{e}")
+                console.print(
+                    f"[red]Error loading docs/issues/PRs for {repo.url}:[/]\n{e}"
+                )
                 continue
             p.advance(doc_task)
 
@@ -140,13 +159,50 @@ def load_data(
     console.print(f"[yellow]PDF docs:[/] {len(pdf_docs)}")
     console.print(f"[yellow]Documentation chunks:[/] {len(md_docs)}")
     console.print(f"[yellow]Issues/PRs:[/] {len(issue_and_pr_docs)}")
-    console.print("[bold blue]Sample output (first 1 of each):[/]")
-    if pdf_docs:
-        console.print(f"[green]PDF sample:[/] {pdf_docs[0]}")
-    if md_docs:
-        console.print(f"[green]Doc sample:[/] {md_docs[0]}")
-    if issue_and_pr_docs:
-        console.print(f"[green]Issue/PR sample:[/] {issue_and_pr_docs[0]}")
+
+    # -------------------------------------------------------------------------
+    # serialize to a local HF Dataset
+    # -------------------------------------------------------------------------
+    console.print("\n[bold blue]Saving to HuggingFace Dataset…[/]")
+
+    records = []
+    for doc in pdf_docs:
+        records.append({"text": doc.page_content, **doc.metadata, "source": "paper"})
+    for doc in md_docs:
+        records.append({"text": doc.page_content, **doc.metadata, "source": "doc"})
+    for doc in issue_and_pr_docs:
+        records.append({"text": doc.page_content, **doc.metadata, "source": "issue"})
+
+    ds = Dataset.from_list(records)
+    ds_splits = DatasetDict(
+        {
+            "papers": ds.filter(lambda x: x["source"] == "paper"),
+            "docs": ds.filter(lambda x: x["source"] == "doc"),
+            "issues": ds.filter(lambda x: x["source"] == "issue"),
+        }
+    )
+    ds_splits.save_to_disk(out)
+
+    console.print(f"[bold green]✓ Dataset saved to {out}[/]")
+
+
+@app.command("load-dataset")
+def load_dataset(
+    dataset_path: Path = typer.Argument(
+        ..., help="Path to the saved HuggingFace dataset directory"
+    ),
+):
+    """
+    Load and display basic info about a previously saved HuggingFace dataset.
+    """
+    console.print(f"[bold blue]Loading dataset from {dataset_path}...[/]")
+    ds_splits = DatasetDict.load_from_disk(dataset_path)
+    for split, ds in ds_splits.items():
+        console.print(f"[green]{split}[/]: {len(ds)} records")
+        # Show a sample
+        if len(ds) > 0:
+            console.print(f"[yellow]Sample from {split}:[/]")
+            console.print(ds[0])
 
 
 if __name__ == "__main__":

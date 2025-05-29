@@ -1078,12 +1078,13 @@ packages:
 - pypi: ./dirac-dataset
   name: dirac-dataset
   version: 0.1.0
-  sha256: a2b63b0aba1f7445c07e2ada59c50506462d74be13edbc2733118d359e48c188
+  sha256: 63a8ebe6a44e2b37e25abba9e0c815e28accc466cde436c22f28a1fbe6612765
   requires_dist:
   - datasets
   - gitpython
   - langchain
   - langchain-community
+  - pydantic
   - pypdf
   - requests
   - rich

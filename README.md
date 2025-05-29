@@ -9,6 +9,7 @@ This repository is now split into three subprojects:
 - **dirac-mcp**: MCP server and related code
 - **dirac-agents**: Agents and tool code
 - **dirac-model**: Model finetuning tools (based on papers)
+- **dirac-dataset**: Tools to load papers, code, documentation into a vector DB
 
 
 ```mermaid
@@ -154,3 +155,7 @@ This subproject contains code and tools for finetuning language models, with the
 
 1. Open the `dirac-agents` folder.
 2. Run `pixi install` to create the environment.
+
+### 4. dirac-dataset
+
+This subproject provides tools to load research papers, documentation, and code from various sources (such as GitHub repositories and PDFs) into a vector database using LangChain. It supports downloading, parsing, and chunking documents, making them ready for retrieval-augmented generation (RAG) and other AI workflows. The resulting vector DB can be used to enhance search, question answering, and agent capabilities with domain-specific knowledge.

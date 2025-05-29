@@ -1,6 +1,22 @@
-[
-    "https://github.com/DIRACGrid/DIRAC.git",
-    "https://github.com/DIRACGrid/diracx.git",
-    "https://github.com/DIRACGrid/diracx-web.git",
-    "https://github.com/DIRACGrid/DIRACOS2.git"
-]
+{
+    "DIRAC": {
+        "url": "https://github.com/DIRACGrid/DIRAC.git",
+        "branch": "integration"
+    },
+    "DIRACOS2": {
+        "url": "https://github.com/DIRACGrid/DIRACOS2.git",
+        "branch": "main"
+    },
+    "diracx": {
+        "url": "https://github.com/DIRACGrid/diracx.git",
+        "branch": "main"
+    },
+    "diracx-web": {
+        "url": "https://github.com/DIRACGrid/diracx-web.git",
+        "branch": "main"
+    },
+    "diracx-charts": {
+        "url": "https://github.com/DIRACGrid/diracx-charts.git",
+        "branch": "master"
+    }
+}

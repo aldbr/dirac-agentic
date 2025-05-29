@@ -32,5 +32,8 @@ cmd = "cd dirac-mcp/src/dirac_mcp && mcp dev diracx.py"
 [feature.dirac-mcp.tasks.dirac-mcp]
 cmd = "cd dirac-mcp/src/dirac_mcp && mcp run diracx.py"
 
-[feature.dirac-dataset.tasks.get-data]
-cmd = "cd dirac-dataset/src/dirac_dataset && python data.py"
+[feature.dirac-dataset.tasks.gen-dataset]
+cmd = "cd dirac-dataset/src/dirac_dataset && python data.py gen-dataset"
+
+[feature.dirac-dataset.tasks.load-dataset]
+cmd = "cd dirac-dataset/src/dirac_dataset && python data.py load-dataset"
