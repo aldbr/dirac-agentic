@@ -1,26 +1,10 @@
 from __future__ import annotations
 from pathlib import Path
-import shutil
-import subprocess
 import requests
 
-from .log import logger as logging
+from dirac_dataset.log import logger as logging
 
 logger = logging.getChild(__name__)
-
-
-def clone_repo(url: str, dest_root: Path, depth: int = 1) -> Path:
-    """Clone a git repository to the specified destination directory."""
-    name = url.rsplit("/", 1)[-1].removesuffix(".git")
-    dest = dest_root / name
-    if dest.exists():
-        shutil.rmtree(dest)
-    logger.info("Cloning %s to %s", url, dest)
-    subprocess.run(
-        ["git", "clone", "--depth", str(depth), url, str(dest)],
-        check=True,
-    )
-    return dest
 
 
 def download_pdf(url: str, out_dir: Path) -> Path:

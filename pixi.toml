@@ -6,6 +6,7 @@ platforms = ["linux-64", "osx-arm64"]
 dirac-mcp = { features = ["dirac-mcp"], solve-group = "dirac-mcp" }
 dirac-agents = { features = ["dirac-agents"], solve-group = "dirac-agents" }
 dirac-model = { features = ["dirac-model"], solve-group = "dirac-model" }
+dirac-dataset = { features = ["dirac-dataset"], solve-group = "dirac-dataset" }
 
 [feature.dirac-mcp.pypi-dependencies]
 dirac-mcp = { path = "dirac-mcp", editable = true }
@@ -15,6 +16,10 @@ dirac-agents = { path = "dirac-agents", editable = true }
 
 [feature.dirac-model.pypi-dependencies]
 dirac-model = { path = "dirac-model", editable = true }
+
+[feature.dirac-dataset.pypi-dependencies]
+dirac-dataset = { path = "dirac-dataset", editable = true }
+
 
 [dependencies]
 python = ">=3.11,<3.13"
@@ -26,3 +31,6 @@ cmd = "cd dirac-mcp/src/dirac_mcp && mcp dev diracx.py"
 
 [feature.dirac-mcp.tasks.dirac-mcp]
 cmd = "cd dirac-mcp/src/dirac_mcp && mcp run diracx.py"
+
+[feature.dirac-dataset.tasks.get-data]
+cmd = "cd dirac-dataset/src/dirac_dataset && python data.py"

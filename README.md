@@ -19,7 +19,6 @@ config:
 flowchart TD
  subgraph Models["Models"]
         any-model["Qwen, Mistral, OpenAI, DeepSeek, ..."]
-        papers["Dirac research papers"]
         dirac-model["**dirac-model** based on long term data - research papers"]
   end
  subgraph Agents["Agents"]
@@ -34,27 +33,31 @@ flowchart TD
         k8s-mcp["K8s-mcp"]
         duckduckgo-mcp["DuckDuckGo-mcp"]
   end
+ subgraph Datasets["Datasets"]
+        dirac-dataset["Dirac Dataset [papers & documentation]"]
+  end
     dirac-model -. based on .-> any-model
-    dirac-model -. finetuned with .-> papers
+    Models -- trained on/finetuned with --> Datasets
     dirac-agent1 -. based on .-> frameworks
     dirac-agent2 -. based on .-> frameworks
     dirac-agent3 -. based on .-> frameworks
     Models -- Provides domain knowledge, LLM completions --> Agents
-    Agents -- Connects to, orchestrates, and calls tools on --> MCP_Servers
+    Agents -- Connects to, orchestrates, and calls tools/resources on --> MCP_Servers
+    MCP_Servers -- provide data as resources --> Datasets
     dirac-mcp -. uses .-> dirac["DiracX Client"]
     dirac-mcp -. based on .-> sdk
     duckduckgo-mcp -. based on .-> sdk
     k8s-mcp -. based on .-> sdk
-    papers@{ shape: cyl}
-     papers:::Rose
      dirac-model:::Peach
      dirac-agent1:::Peach
      dirac-agent2:::Peach
      dirac-agent3:::Peach
      dirac-mcp:::Peach
+     dirac-dataset:::Peach
      dirac:::Rose
-    classDef Peach stroke-width:1px, stroke-dasharray:none, stroke:#FBB35A, fill:#FFEFDB, color:#8F632D
     classDef Rose stroke-width:1px, stroke-dasharray:none, stroke:#FF5978, fill:#FFDFE5, color:#8E2236
+    classDef Peach stroke-width:1px, stroke-dasharray:none, stroke:#FBB35A, fill:#FFEFDB, color:#8F632D
+
 ```
 
 

@@ -5,23 +5,10 @@ description = "Tools to build the dirac AI agent"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-  "bs4>=0.0.2",
-  "datasets>=3.2.0",
-  "diracx",
-  "distilabel>=1.5.3",
-  "faiss-cpu",
-  "fitz",
-  "ipython>=8.32.0",
-  "mcp[cli]",
-  "peft",
-  "pygithub>=2.5.0",
-  "pymupdf>=1.25.2",
-  "requests>=2.32.3",
-  "smolagents>=1.4",
-  "torch>=2.6.0",
-  "typer>=0.15.1",
-  "sentence-transformers",
-  "transformers",
+  "dirac-dataset",
+  "dirac-model",
+  "dirac-agents",
+  "dirac-mcp",
 ]
 
 [project.optional-dependencies]
@@ -32,7 +19,7 @@ dev = [
   "pre-commit",
   "pytest",
   "ruff",
-  "types-requests"
+  "types-requests",
 ]
 
 [project.scripts]
