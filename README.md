@@ -99,15 +99,22 @@ This subproject contains the MCP server and related code. **To interact with the
       "servers": {
         "diracx": {
           "type": "stdio",
-          "command": "pixi",
+          "command": "docker",
           "args": [
             "run",
-            "--manifest-path",
-            "/path/to/dirac-agentic/pixi.toml",
-            "dirac-mcp"
+            "-i",
+            "--rm",
+            "-e",
+            "DIRACX_URL",
+            "-e",
+            "DIRACX_CREDENTIALS_PATH",
+            "-v",
+            "/path/to/.cache/diracx/credentials.json:/tmp/credentials.json",
+            "dirac-mcp:latest"
           ],
           "env": {
-            "DIRACX_URL": "https://diracx-cert.app.cern.ch"
+            "DIRACX_URL": "https://diracx-cert.app.cern.ch",
+            "DIRACX_CREDENTIALS_PATH": "/tmp/credentials.json"
           }
         }
       }
