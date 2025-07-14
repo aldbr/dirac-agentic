@@ -18,7 +18,7 @@ from typing import List
 
 from datasets import Dataset, DatasetDict
 from pydantic import BaseModel
-import typer
+import typer 
 from rich.console import Console
 from rich.progress import (
     Progress,
@@ -128,63 +128,36 @@ def generate_dataset(
             p.advance(pdf_task)
 
     # -------------------------------------------------------------------------
-    # load PDFs, documentation, and issues/PRs using loader.py
+    # Load PDFs, documentation, and issues/PRs using loader.py
     # -------------------------------------------------------------------------
-    console.print("\n[bold blue]Loading PDFs and documentation...[/]")
-    pdf_docs = loader.pdf_loader(pdf_tmp)
-    md_docs = []
-    issue_and_pr_docs = []
+    console.print("\n[bold blue]Loading PDFs and documentation, inserting into Milvus...[/]")
+
+    # PDFs
+    pdf_insert_count = loader.pdf_loader(pdf_tmp)
+
+    # Repos
+    doc_insert_total = 0
+    issue_insert_total = 0
+
     with _progress() as p:
         doc_task = p.add_task("[cyan]Loading docs/issues/PRs", total=len(repos))
         for repo in repos:
             try:
-                md_docs.extend(loader.doc_loader(repo.url, branch=repo.branch))
-                issue_and_pr_docs.extend(loader.git_metadata_loader(repo.url))
+                doc_insert_total += loader.doc_loader(repo.url, branch=repo.branch)
+                issue_insert_total += loader.git_metadata_loader(repo.url)
             except Exception as e:
-                console.print(
-                    f"[red]Error loading docs/issues/PRs for {repo.url}:[/]\n{e}"
-                )
+                console.print(f"[red]Error loading for {repo.url}:[/]\n{e}")
                 continue
             p.advance(doc_task)
 
-    # -------------------------------------------------------------------------
-    # cleanup
-    # -------------------------------------------------------------------------
+    # Cleanup
     shutil.rmtree(pdf_tmp, ignore_errors=True)
 
-    # -------------------------------------------------------------------------
-    # display result
-    # -------------------------------------------------------------------------
-    console.print("\n[bold green]✓ All done! Loaded documents:[/]")
-    console.print(f"[yellow]PDF docs:[/] {len(pdf_docs)}")
-    console.print(f"[yellow]Documentation chunks:[/] {len(md_docs)}")
-    console.print(f"[yellow]Issues/PRs:[/] {len(issue_and_pr_docs)}")
-
-    # -------------------------------------------------------------------------
-    # serialize to a local HF Dataset
-    # -------------------------------------------------------------------------
-    console.print("\n[bold blue]Saving to HuggingFace Dataset…[/]")
-
-    records = []
-    for doc in pdf_docs:
-        records.append({"text": doc.page_content, **doc.metadata, "source": "paper"})
-    for doc in md_docs:
-        records.append({"text": doc.page_content, **doc.metadata, "source": "doc"})
-    for doc in issue_and_pr_docs:
-        records.append({"text": doc.page_content, **doc.metadata, "source": "issue"})
-
-    ds = Dataset.from_list(records)
-    ds_splits = DatasetDict(
-        {
-            "papers": ds.filter(lambda x: x["source"] == "paper"),
-            "docs": ds.filter(lambda x: x["source"] == "doc"),
-            "issues": ds.filter(lambda x: x["source"] == "issue"),
-        }
-    )
-    ds_splits.save_to_disk(out)
-
-    console.print(f"[bold green]✓ Dataset saved to {out}[/]")
-
+    # Display inserted stats
+    console.print("\n[bold green]✓ All done! Inserted into Milvus:[/]")
+    console.print(f"[yellow]PDF chunks inserted:[/] {pdf_insert_count}")
+    console.print(f"[yellow]Documentation chunks inserted:[/] {doc_insert_total}")
+    console.print(f"[yellow]Issues/PRs inserted:[/] {issue_insert_total}")
 
 @app.command("load-dataset")
 def load_dataset(
