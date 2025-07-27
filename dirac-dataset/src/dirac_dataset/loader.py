@@ -6,8 +6,6 @@ from langchain_community.document_loaders.pdf import PyPDFDirectoryLoader
 from langchain_community.document_loaders.git import GitLoader
 from langchain_community.document_loaders.github import GitHubIssuesLoader
 from llama_index.embeddings.openai import OpenAIEmbedding
-from pymilvus import MilvusClient, FieldSchema, CollectionSchema, DataType
-from pymilvus.milvus_client import IndexParams
 import numpy as np
 
 embed_model = OpenAIEmbedding(model="text-embedding-3-small")
@@ -34,62 +32,6 @@ def split_markdown_by_heading(documents, max_length=512, overlap=50):
                     nodes.append(TextNode(text=chunk, metadata=metadata))
     return nodes
 
-def store_embeddings_in_milvus(
-    embeddings: list[list[float]],
-    texts: list[str],
-    source: str = "generic",
-    collection_name: str = "doc_embeddings",
-    db_path: str = "./milvus_demo.db"
-):
-    """
-    Store embeddings and texts into Milvus with indexing for retrieval.
-
-    Parameters:
-        embeddings: List[List[float]] - The embeddings to store.
-        texts: List[str] - Corresponding texts.
-        source: str - Source label ("paper", "doc", "issue", etc.) for tracking.
-        collection_name: str - Milvus collection name.
-        db_path: str - Local Milvus DB storage path.
-    """
-
-    # Initialize Milvus client
-    client = MilvusClient(uri="./milvus_demo.db")
-
-    # Create collection schema if not exists
-    fields = [
-        FieldSchema(name="id", dtype=DataType.INT64, is_primary=True, auto_id=True),
-        FieldSchema(name="embedding", dtype=DataType.FLOAT_VECTOR, dim=len(embeddings[0])),
-        FieldSchema(name="text", dtype=DataType.VARCHAR, max_length=2048),
-        FieldSchema(name="source", dtype=DataType.VARCHAR, max_length=128),
-    ]
-    schema = CollectionSchema(fields, description="Document embeddings with raw text and source info")
-
-    if not client.has_collection(collection_name):
-        client.create_collection(collection_name=collection_name, schema=schema)
-
-    # Prepare data for insertion
-    insert_data = [
-        {"embedding": emb, "text": txt, "source": source}
-        for emb, txt in zip(embeddings, texts)
-    ]
-
-    # Insert and flush
-    client.insert(collection_name=collection_name, data=insert_data)
-    client.flush(collection_name=collection_name)
-
-    # Create index if not already created
-    index_params = IndexParams()
-    index_params.add_index(
-        field_name="embedding",
-        index_type="IVF_FLAT",
-        index_name="ivf_index",
-        metric_type="COSINE",
-        nlist=128
-    )
-    client.create_index(collection_name=collection_name, index_params=index_params)
-    client.flush(collection_name=collection_name)
-    return len(insert_data)
-
 
 def doc_loader(repo_url: str, branch: str = "main"):
     """
@@ -106,17 +48,17 @@ def doc_loader(repo_url: str, branch: str = "main"):
     raw_docs = git_loader.load()
     shutil.rmtree(repo_path, ignore_errors=True)
 
-    # 使用按标题分块逻辑
-    nodes = split_markdown_by_heading(raw_docs, max_length=512, overlap=50)
-    texts = [node.text for node in nodes]
-    # 嵌入生成
-    embeddings = embed_model.get_text_embedding_batch(texts)
-    embeddings_np = np.array(embeddings, dtype=np.float32)
-    embeddings_list = embeddings_np.tolist()
-
-    # 存入 Milvus
-    inserted_count = store_embeddings_in_milvus(embeddings_list, texts, source="doc")
-    return inserted_count
+    # Use block logic by title
+    md_docs = split_markdown_by_heading(raw_docs, max_length=512, overlap=50)
+    # texts = [node.text for node in nodes]
+    # # 嵌入生成
+    # embeddings = embed_model.get_text_embedding_batch(texts)
+    # embeddings_np = np.array(embeddings, dtype=np.float32)
+    # embeddings_list = embeddings_np.tolist()
+    #
+    # # 存入 Milvus
+    # inserted_count = store_embeddings_in_milvus(embeddings_list, texts, source="doc")
+    return md_docs
 
 def pdf_loader(pdfs_path: Path):
     """
@@ -127,13 +69,13 @@ def pdf_loader(pdfs_path: Path):
         text_splitter=RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
     )
 
-    texts = [doc.page_content for doc in pdf_docs]
-    embeddings = embed_model.get_text_embedding_batch(texts)
-    embeddings_np = np.array(embeddings, dtype=np.float32)
-    embeddings_list = embeddings_np.tolist()
-
-    inserted_count = store_embeddings_in_milvus(embeddings_list, texts, source="paper")
-    return inserted_count
+    # texts = [doc.page_content for doc in pdf_docs]
+    # embeddings = embed_model.get_text_embedding_batch(texts)
+    # embeddings_np = np.array(embeddings, dtype=np.float32)
+    # embeddings_list = embeddings_np.tolist()
+    #
+    # inserted_count = store_embeddings_in_milvus(embeddings_list, texts, source="paper")
+    return pdf_docs
 
 def git_metadata_loader(repo_url: str):
     """
@@ -147,11 +89,11 @@ def git_metadata_loader(repo_url: str):
         state="all",
     )
     issue_and_pr_docs = issues_loader.load()
-
-    texts = [doc.page_content for doc in issue_and_pr_docs]
-    embeddings = embed_model.get_text_embedding_batch(texts)
-    embeddings_np = np.array(embeddings, dtype=np.float32)
-    embeddings_list = embeddings_np.tolist()
-
-    inserted_count = store_embeddings_in_milvus(embeddings_list, texts, source="issue")
-    return inserted_count
+    #
+    # texts = [doc.page_content for doc in issue_and_pr_docs]
+    # embeddings = embed_model.get_text_embedding_batch(texts)
+    # embeddings_np = np.array(embeddings, dtype=np.float32)
+    # embeddings_list = embeddings_np.tolist()
+    #
+    # inserted_count = store_embeddings_in_milvus(embeddings_list, texts, source="issue")
+    return issue_and_pr_docs
