@@ -7,9 +7,11 @@ requires-python = ">=3.11"
 dependencies = [
   "datasets",
   "GitPython",
+  "llama-index",
   "langchain",
   "langchain-community",
   "pydantic",
+  "pymilvus",
   "pypdf",
   "requests",
   "rich",
