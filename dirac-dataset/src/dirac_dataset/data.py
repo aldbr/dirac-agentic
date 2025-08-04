@@ -15,6 +15,7 @@ import os
 import shutil
 from pathlib import Path
 from typing import List
+import numpy as np
 
 from datasets import Dataset, DatasetDict
 from pydantic import BaseModel
@@ -203,6 +204,151 @@ def load_dataset(
         if len(ds) > 0:
             console.print(f"[yellow]Sample from {split}:[/]")
             console.print(ds[0])
+
+
+@app.command("load-db")
+def load_db(
+    repos_file: Path = typer.Option(
+        ..., "--repos-file", "-r", exists=True, help="TXT/JSON with repo URLs"
+    ),
+    pdfs_file: Path = typer.Option(
+        ..., "--pdfs-file", "-p", exists=True, help="TXT/JSON with PDF URLs"
+    ),
+    db_path: Path = typer.Option(
+        Path("./milvus_demo.db"), "--db-path", "-d", help="Path to Milvus database"
+    ),
+    collection_name: str = typer.Option(
+        "doc_embeddings", "--collection", "-c", help="Milvus collection name"
+    ),
+    verbose: bool = typer.Option(
+        False, "--verbose", "-v", help="Rich logging at DEBUG level"
+    ),
+):
+    """
+    Load documents from repos and PDFs, generate embeddings, and store in Milvus database.
+    """
+    from dirac_dataset.milvus import store_embeddings_in_milvus
+    
+    # -------------------------------------------------------------------------
+    # configure logging
+    # -------------------------------------------------------------------------
+    logger.setLevel("DEBUG" if verbose else "INFO")
+
+    # -------------------------------------------------------------------------
+    # check GITHUB_PERSONAL_ACCESS_TOKEN
+    # -------------------------------------------------------------------------
+    if not os.getenv("GITHUB_PERSONAL_ACCESS_TOKEN"):
+        console.print(
+            "[red]GITHUB_PERSONAL_ACCESS_TOKEN environment variable is not set! Exiting."
+        )
+        raise typer.Exit(1)
+
+    pdf_tmp = Path("tmp_pdfs")
+    pdf_tmp.mkdir(parents=True, exist_ok=True)
+
+    repos = _load_repos(repos_file)
+    pdf_urls = _load_pdfs(pdfs_file)
+
+    # -------------------------------------------------------------------------
+    # download PDFs
+    # -------------------------------------------------------------------------
+    with _progress() as p:
+        pdf_task = p.add_task("[magenta]Downloading PDFs", total=len(pdf_urls))
+        pdf_id = 0
+        for url in pdf_urls:
+            try:
+                downloader.download_pdf(
+                    url, pdf_tmp, local_name=f"article_{pdf_id}.pdf"
+                )
+                pdf_id += 1
+            except Exception as e:
+                console.print(f"[red]Error downloading or copying PDF:[/]\n{e}")
+                continue
+            p.advance(pdf_task)
+
+    # -------------------------------------------------------------------------
+    # load PDFs, documentation, and issues/PRs using loader.py
+    # -------------------------------------------------------------------------
+    console.print("\n[bold blue]Loading PDFs and documentation...[/]")
+    pdf_docs = loader.pdf_loader(pdf_tmp)
+    md_docs = []
+    issue_and_pr_docs = []
+    with _progress() as p:
+        doc_task = p.add_task("[cyan]Loading docs/issues/PRs", total=len(repos))
+        for repo in repos:
+            try:
+                md_docs.extend(loader.doc_loader(repo.url, branch=repo.branch))
+                issue_and_pr_docs.extend(loader.git_metadata_loader(repo.url))
+            except Exception as e:
+                console.print(
+                    f"[red]Error loading docs/issues/PRs for {repo.url}:[/]\n{e}"
+                )
+                continue
+            p.advance(doc_task)
+
+    # -------------------------------------------------------------------------
+    # Generate embeddings and store in Milvus
+    # -------------------------------------------------------------------------
+    console.print("\n[bold blue]Generating embeddings and storing in Milvus...[/]")
+    
+    # Process PDF documents
+    with _progress() as p:
+        pdf_embed_task = p.add_task("[magenta]Processing PDF documents", total=len(pdf_docs))
+        texts = [doc.page_content for doc in pdf_docs]
+        if texts:
+            embeddings = loader.embed_model.get_text_embedding_batch(texts)
+            embeddings_np = np.array(embeddings, dtype=np.float32)
+            embeddings_list = embeddings_np.tolist()
+            inserted_count = store_embeddings_in_milvus(
+                embeddings_list, texts, source="paper", 
+                collection_name=collection_name, db_path=str(db_path)
+            )
+            console.print(f"[green]Stored {inserted_count} PDF document embeddings[/]")
+        p.update(pdf_embed_task, completed=len(pdf_docs))
+    
+    # Process markdown documents
+    with _progress() as p:
+        md_embed_task = p.add_task("[cyan]Processing markdown documents", total=len(md_docs))
+        texts = [node.text for node in md_docs]
+        if texts:
+            embeddings = loader.embed_model.get_text_embedding_batch(texts)
+            embeddings_np = np.array(embeddings, dtype=np.float32)
+            embeddings_list = embeddings_np.tolist()
+            inserted_count = store_embeddings_in_milvus(
+                embeddings_list, texts, source="doc", 
+                collection_name=collection_name, db_path=str(db_path)
+            )
+            console.print(f"[green]Stored {inserted_count} markdown document embeddings[/]")
+        p.update(md_embed_task, completed=len(md_docs))
+    
+    # Process issues and PRs
+    with _progress() as p:
+        issue_embed_task = p.add_task("[yellow]Processing issues and PRs", total=len(issue_and_pr_docs))
+        texts = [doc.page_content for doc in issue_and_pr_docs]
+        if texts:
+            embeddings = loader.embed_model.get_text_embedding_batch(texts)
+            embeddings_np = np.array(embeddings, dtype=np.float32)
+            embeddings_list = embeddings_np.tolist()
+            inserted_count = store_embeddings_in_milvus(
+                embeddings_list, texts, source="issue", 
+                collection_name=collection_name, db_path=str(db_path)
+            )
+            console.print(f"[green]Stored {inserted_count} issue/PR embeddings[/]")
+        p.update(issue_embed_task, completed=len(issue_and_pr_docs))
+    
+    # -------------------------------------------------------------------------
+    # cleanup
+    # -------------------------------------------------------------------------
+    shutil.rmtree(pdf_tmp, ignore_errors=True)
+    
+    # -------------------------------------------------------------------------
+    # display result
+    # -------------------------------------------------------------------------
+    console.print("\n[bold green]✓ All done! Documents stored in Milvus database:[/]")
+    console.print(f"[yellow]PDF docs:[/] {len(pdf_docs)}")
+    console.print(f"[yellow]Documentation chunks:[/] {len(md_docs)}")
+    console.print(f"[yellow]Issues/PRs:[/] {len(issue_and_pr_docs)}")
+    console.print(f"[bold green]✓ Database saved to {db_path}[/]")
 
 
 if __name__ == "__main__":

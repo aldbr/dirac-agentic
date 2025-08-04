@@ -9,3 +9,6 @@ data/dirac_*
 
 # Virtual environments
 .venv
+
+# IDE files
+.idea/
