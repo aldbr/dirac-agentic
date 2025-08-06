@@ -19,7 +19,7 @@ dirac-agents = { path = "dirac-agents", editable = true }
 dirac-model = { path = "dirac-model", editable = true }
 
 [feature.dirac-dataset.pypi-dependencies]
-dirac-dataset = { path = "dirac-dataset", editable = true }
+dirac-dataset = { path = "dirac-dataset", editable = true, extras = ["test"] }
 
 
 [dependencies]
@@ -34,7 +34,13 @@ cmd = "cd dirac-mcp/src/dirac_mcp && mcp dev diracx.py"
 cmd = "cd dirac-mcp/src/dirac_mcp && mcp run diracx.py"
 
 [feature.dirac-dataset.tasks.gen-dataset]
-cmd = "cd dirac-dataset/src/dirac_dataset && python data.py gen-dataset"
+cmd = "cd dirac-dataset && python -m dirac_dataset gen-dataset"
 
-[feature.dirac-dataset.tasks.load-dataset]
-cmd = "cd dirac-dataset/src/dirac_dataset && python data.py load-dataset"
+[feature.dirac-dataset.tasks.load-db]
+cmd = "cd dirac-dataset && python -m dirac_dataset load-db"
+
+[feature.dirac-dataset.tasks.test-dataset]
+cmd = "cd dirac-dataset && python -m pytest test/ -v"
+
+[feature.dirac-dataset.tasks.mypy-dataset]
+cmd = "cd dirac-dataset && mypy src/ test/"

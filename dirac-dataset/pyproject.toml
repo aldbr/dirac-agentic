@@ -6,14 +6,22 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
   "datasets",
-  "GitPython",
   "llama-index",
-  "langchain",
-  "langchain-community",
+  "llama-index-embeddings-openai",
+  "llama-index-readers-file",
+  "llama-index-readers-github",
   "pydantic",
   "pymilvus",
   "pypdf",
   "requests",
   "rich",
   "typer",
+  "numpy",
+  "types-requests",
 ]
+
+[project.optional-dependencies]
+chroma = ["chromadb"]
+huggingface = ["sentence-transformers"]
+test = ["pytest", "pytest-mock"]
+all = ["chromadb", "sentence-transformers"]
