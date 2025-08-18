@@ -20,6 +20,9 @@ logger = logging.getLogger(__name__)
 
 ModelTier = Literal["cpu", "gpu", "multi-gpu"]
 
+# Supported model prefixes for validation
+SUPPORTED_MODEL_PREFIXES = ["sentence-transformers/", "BAAI/", "intfloat/"]
+
 
 class EmbeddingModelInfo(BaseModel):
     """Pydantic model for embedding model metadata.
@@ -53,9 +56,7 @@ class EmbeddingModelInfo(BaseModel):
         """Validate model ID format."""
         if not v or not isinstance(v, str):
             raise ValueError("Model ID must be a non-empty string")
-        if not any(
-            prefix in v for prefix in ["sentence-transformers/", "BAAI/", "intfloat/"]
-        ):
+        if not any(prefix in v for prefix in SUPPORTED_MODEL_PREFIXES):
             raise ValueError("Model ID must be from a supported organization")
         return v
 

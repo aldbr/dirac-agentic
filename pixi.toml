@@ -20,6 +20,7 @@ dirac-model = { path = "dirac-model", editable = true }
 
 [feature.dirac-dataset.pypi-dependencies]
 dirac-dataset = { path = "dirac-dataset", editable = true, extras = ["test"] }
+mypy = "*"
 
 
 [dependencies]

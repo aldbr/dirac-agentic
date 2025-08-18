@@ -5,7 +5,7 @@ types of database services (Milvus, Chroma, HuggingFace) with a unified interfac
 """
 
 from abc import ABC, abstractmethod
-from typing import List
+from typing import List, Optional, Dict, Any, Tuple
 
 
 class DatabaseService(ABC):
@@ -42,6 +42,62 @@ class DatabaseService(ABC):
 
         Returns:
             List of dictionaries containing similar embeddings and metadata.
+        """
+        pass
+
+    @abstractmethod
+    def similarity_search_with_score(
+        self,
+        query_embedding: List[float],
+        top_k: int = 5,
+        filter: Optional[Dict[str, Any]] = None,
+    ) -> List[Tuple[Any, float]]:
+        """Search for similar documents with similarity scores.
+
+        Args:
+            query_embedding: Query embedding vector to search for.
+            top_k: Number of top results to return.
+            filter: Optional filter criteria (e.g., {"source": "papers"}).
+
+        Returns:
+            List of tuples (document, score) sorted by similarity.
+        """
+        pass
+
+    @abstractmethod
+    def get_document(self, doc_id: str) -> Optional[Any]:
+        """Retrieve a specific document by ID.
+
+        Args:
+            doc_id: Unique document identifier.
+
+        Returns:
+            Document object if found, None otherwise.
+        """
+        pass
+
+    @abstractmethod
+    def browse_documents(
+        self, filter: Optional[Dict[str, Any]] = None, limit: int = 20, offset: int = 0
+    ) -> List[Any]:
+        """Browse documents with optional filtering and pagination.
+
+        Args:
+            filter: Optional filter criteria.
+            limit: Maximum number of documents to return.
+            offset: Number of documents to skip.
+
+        Returns:
+            List of document objects.
+        """
+        pass
+
+    @abstractmethod
+    def get_stats(self) -> Dict[str, Any]:
+        """Get database statistics.
+
+        Returns:
+            Dictionary containing database statistics.
         """
         pass
 
@@ -98,6 +154,41 @@ class MilvusService(DatabaseService):
         return search_embeddings_in_milvus(
             query_embedding, self.collection_name, self.db_path, top_k
         )
+
+    def similarity_search_with_score(
+        self,
+        query_embedding: List[float],
+        top_k: int = 5,
+        filter: Optional[Dict[str, Any]] = None,
+    ) -> List[Tuple[Any, float]]:
+        """Search for similar documents with similarity scores."""
+        from .milvus import search_embeddings_with_scores_in_milvus
+
+        return search_embeddings_with_scores_in_milvus(
+            query_embedding, self.collection_name, self.db_path, top_k, filter
+        )
+
+    def get_document(self, doc_id: str) -> Optional[Any]:
+        """Retrieve a specific document by ID."""
+        from .milvus import get_document_by_id_in_milvus
+
+        return get_document_by_id_in_milvus(doc_id, self.collection_name, self.db_path)
+
+    def browse_documents(
+        self, filter: Optional[Dict[str, Any]] = None, limit: int = 20, offset: int = 0
+    ) -> List[Any]:
+        """Browse documents with optional filtering and pagination."""
+        from .milvus import browse_documents_in_milvus
+
+        return browse_documents_in_milvus(
+            self.collection_name, self.db_path, filter, limit, offset
+        )
+
+    def get_stats(self) -> Dict[str, Any]:
+        """Get database statistics."""
+        from .milvus import get_milvus_stats
+
+        return get_milvus_stats(self.collection_name, self.db_path)
 
 
 class ChromaService(DatabaseService):
@@ -158,6 +249,33 @@ class ChromaService(DatabaseService):
         )
         return results
 
+    def similarity_search_with_score(
+        self,
+        query_embedding: List[float],
+        top_k: int = 5,
+        filter: Optional[Dict[str, Any]] = None,
+    ) -> List[Tuple[Any, float]]:
+        """Search for similar documents with similarity scores."""
+        # TODO: Implement proper Chroma search with scores and filtering
+        return []
+
+    def get_document(self, doc_id: str) -> Optional[Any]:
+        """Retrieve a specific document by ID."""
+        # TODO: Implement Chroma document retrieval by ID
+        return None
+
+    def browse_documents(
+        self, filter: Optional[Dict[str, Any]] = None, limit: int = 20, offset: int = 0
+    ) -> List[Any]:
+        """Browse documents with optional filtering and pagination."""
+        # TODO: Implement Chroma document browsing
+        return []
+
+    def get_stats(self) -> Dict[str, Any]:
+        """Get database statistics."""
+        # TODO: Implement Chroma statistics
+        return {"total_documents": 0, "sources": []}
+
 
 class HuggingFaceService(DatabaseService):
     """HuggingFace Dataset service for storing embeddings.
@@ -214,6 +332,33 @@ class HuggingFaceService(DatabaseService):
         """
         # For now, return empty list - would need FAISS implementation
         return []
+
+    def similarity_search_with_score(
+        self,
+        query_embedding: List[float],
+        top_k: int = 5,
+        filter: Optional[Dict[str, Any]] = None,
+    ) -> List[Tuple[Any, float]]:
+        """Search for similar documents with similarity scores."""
+        # TODO: Implement HuggingFace FAISS search with scores
+        return []
+
+    def get_document(self, doc_id: str) -> Optional[Any]:
+        """Retrieve a specific document by ID."""
+        # TODO: Implement HuggingFace document retrieval by ID
+        return None
+
+    def browse_documents(
+        self, filter: Optional[Dict[str, Any]] = None, limit: int = 20, offset: int = 0
+    ) -> List[Any]:
+        """Browse documents with optional filtering and pagination."""
+        # TODO: Implement HuggingFace document browsing
+        return []
+
+    def get_stats(self) -> Dict[str, Any]:
+        """Get database statistics."""
+        # TODO: Implement HuggingFace statistics
+        return {"total_documents": 0, "sources": []}
 
 
 class DatabaseFactory:
