@@ -1,6 +1,8 @@
 #!/usr/bin/env python
-"""
-CLI for database loading - Presentation Layer
+"""CLI for database loading - Presentation Layer.
+
+This module provides the command-line interface for loading HuggingFace datasets
+into vector databases, handling embedding generation, progress tracking, and result display.
 """
 
 from __future__ import annotations
@@ -27,7 +29,11 @@ app = typer.Typer(add_completion=False)
 
 
 def _create_progress() -> Progress:
-    """Create a Rich progress bar with custom styling"""
+    """Create a Rich progress bar with custom styling.
+
+    Returns:
+        Configured Progress instance with spinner, bar, and timing columns.
+    """
     return Progress(
         SpinnerColumn(),
         TextColumn("[progress.description]{task.description}"),
@@ -54,16 +60,29 @@ def load_db(
         "doc_embeddings", "--collection", "-c", help="Collection name"
     ),
     embedding_model: str = typer.Option(
-        "BAAI/bge-small-en-v1.5",
+        "all-MiniLM-L6-v2",
         "--embedding",
-        help="Embedding model (e.g., BAAI/bge-small-en-v1.5, text-embedding-3-small)",
+        help="Free embedding model (e.g., all-MiniLM-L6-v2, all-mpnet-base-v2, BAAI/bge-base-en-v1.5)",
     ),
     verbose: bool = typer.Option(
         False, "--verbose", "-v", help="Rich logging at DEBUG level"
     ),
 ):
-    """
-    Load HuggingFace dataset, generate embeddings, and store in vector database.
+    """Load HuggingFace dataset into vector database with embeddings.
+
+    Loads a HuggingFace dataset, generates embeddings using the specified model,
+    and stores them in the chosen vector database for similarity search.
+
+    Args:
+        dataset_path: Path to the directory containing the HuggingFace dataset.
+        db_type: Type of vector database to use ("milvus", "chroma", "huggingface").
+        db_path: Path where the vector database will be stored.
+        collection_name: Name for the database collection/table.
+        embedding_model: Name of the embedding model to use for text vectorization.
+        verbose: Enable debug-level logging for detailed progress information.
+
+    Raises:
+        typer.Exit: With code 1 if loading fails due to validation or processing errors.
     """
     console.print(
         Panel.fit(
@@ -79,6 +98,13 @@ def load_db(
     progress_tasks: Dict[str, Any] = {}
 
     def progress_callback(task_name: str, current: int, total: int):
+        """Handle progress updates from the database loading process.
+
+        Args:
+            task_name: Name of the current task being processed.
+            current: Current progress count.
+            total: Total expected count for the task.
+        """
         if task_name not in progress_tasks:
             if task_name == "dataset_loading":
                 progress_tasks[task_name] = progress.add_task(

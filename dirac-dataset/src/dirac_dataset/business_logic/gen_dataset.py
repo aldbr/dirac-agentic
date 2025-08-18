@@ -1,5 +1,8 @@
-"""
-Dataset generation business logic
+"""Dataset generation business logic.
+
+This module provides functions and classes for generating datasets from
+GitHub repositories and PDF files. It handles document loading, processing,
+and conversion to HuggingFace Dataset format.
 """
 
 from __future__ import annotations
@@ -27,7 +30,12 @@ logger = logger.getChild(__name__)
 
 
 class Repo(BaseModel):
-    """Model for repository URLs."""
+    """Model for repository URLs.
+
+    Attributes:
+        url: The GitHub repository URL.
+        branch: The git branch to use, defaults to "main".
+    """
 
     url: str
     branch: str = "main"
@@ -37,7 +45,14 @@ class Repo(BaseModel):
 
 
 def _load_repos_file(path: Path) -> List[Repo]:
-    """Accept *.json (dict or list) or *.txt (one URL per line). Returns a list of Repo objects."""
+    """Load repository configurations from a JSON file.
+
+    Args:
+        path: Path to JSON file containing repository configurations.
+
+    Returns:
+        List of Repo objects parsed from the file.
+    """
     logger.debug(f"Loading repositories from {path}")
     data = json.loads(path.read_text())
     repos = [Repo(**repo) for repo in data.values()]
@@ -68,9 +83,20 @@ def _split_markdown_by_heading(documents, max_length=512, overlap=50):
 
 
 def _load_doc(repo_url: str, branch: str = "main"):
-    """
-    Load text documents from a git repo using LlamaIndex GitHub reader,
-    split using markdown heading-based window splitting.
+    """Load and process documents from a GitHub repository.
+
+    Uses LlamaIndex GitHub reader to load markdown and RST files from the
+    specified repository, then splits them using heading-based chunking.
+
+    Args:
+        repo_url: GitHub repository URL.
+        branch: Git branch to load from, defaults to "main".
+
+    Returns:
+        List of TextNode objects containing processed document chunks.
+
+    Raises:
+        ValueError: If the GitHub URL format is invalid.
     """
     # Extract owner and repo name from URL
     # e.g., https://github.com/owner/repo -> owner, repo
@@ -109,7 +135,14 @@ def _load_doc(repo_url: str, branch: str = "main"):
 
 
 def _load_pdfs_file(path: Path) -> List[str]:
-    """Accept *.json (list of URLs) or *.txt (one URL per line). Returns a list of PDF URLs."""
+    """Load PDF URLs from a JSON file.
+
+    Args:
+        path: Path to JSON file containing list of PDF URLs.
+
+    Returns:
+        List of PDF URL strings.
+    """
     logger.debug(f"Loading PDF URLs from {path}")
     pdf_urls = json.loads(path.read_text())
     logger.info(f"Loaded {len(pdf_urls)} PDF URLs")
@@ -117,8 +150,18 @@ def _load_pdfs_file(path: Path) -> List[str]:
 
 
 def _download_pdf(url: str, out_dir: Path, local_name: str) -> Path | None:
-    """Download a PDF from the given URL and save it to the specified directory.
-    Only saves if content-type is PDF and file starts with %PDF.
+    """Download a PDF from URL with validation.
+
+    Downloads PDF file and validates it has proper content-type header
+    and PDF magic number. Only saves valid PDF files.
+
+    Args:
+        url: URL to download PDF from.
+        out_dir: Directory to save the PDF file.
+        local_name: Local filename for the downloaded PDF.
+
+    Returns:
+        Path to downloaded file if successful, None if validation failed.
     """
     out_dir.mkdir(parents=True, exist_ok=True)
     file = out_dir / local_name
@@ -173,8 +216,16 @@ def _download_pdf(url: str, out_dir: Path, local_name: str) -> Path | None:
 
 
 def _load_pdfs(pdfs_path: Path):
-    """
-    Load PDF documents, split into chunks using LlamaIndex.
+    """Load and process PDF documents into chunks.
+
+    Uses LlamaIndex PDFReader to load PDF files and splits them into
+    manageable chunks using sentence-based splitting.
+
+    Args:
+        pdfs_path: Directory path containing PDF files.
+
+    Returns:
+        List of TextNode objects containing processed PDF chunks.
     """
     pdf_reader = PDFReader()
     text_splitter = SentenceSplitter(chunk_size=500, chunk_overlap=50)
@@ -209,7 +260,26 @@ def generate_dataset(
     verbose: bool = False,
     progress_callback: Optional[Callable[[str, int, int], None]] = None,
 ) -> dict:
-    """Generate dataset from repos and PDFs"""
+    """Generate HuggingFace dataset from GitHub repositories and PDF files.
+
+    Downloads PDFs, loads documentation from GitHub repositories, processes
+    all documents into chunks, and saves as a HuggingFace Dataset with
+    separate splits for papers and documentation.
+
+    Args:
+        repos_file: Path to JSON file containing repository configurations.
+        pdfs_file: Path to JSON file containing PDF URLs.
+        out: Output directory for the generated dataset.
+        verbose: Whether to enable debug logging.
+        progress_callback: Optional callback function for progress updates.
+
+    Returns:
+        Dictionary containing generation statistics including document counts
+        and output path.
+
+    Raises:
+        ValueError: If GITHUB_TOKEN environment variable is not set.
+    """
     # Configure logging
     logger.setLevel("DEBUG" if verbose else "INFO")
     logger.info("Starting dataset generation")

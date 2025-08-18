@@ -1,5 +1,7 @@
-"""
-Factory for creating database services
+"""Factory for creating database services.
+
+This module provides a factory pattern implementation for creating different
+types of database services (Milvus, Chroma, HuggingFace) with a unified interface.
 """
 
 from abc import ABC, abstractmethod
@@ -7,25 +9,48 @@ from typing import List
 
 
 class DatabaseService(ABC):
-    """Abstract base class for database services"""
+    """Abstract base class for database services.
+
+    Defines the interface that all database service implementations must follow.
+    """
 
     @abstractmethod
     def store_embeddings(
         self, embeddings: List[List[float]], texts: List[str], source: str = "generic"
     ) -> int:
-        """Store embeddings and return number of inserted records"""
+        """Store embeddings with their corresponding texts.
+
+        Args:
+            embeddings: List of embedding vectors to store.
+            texts: List of text documents corresponding to embeddings.
+            source: Source label for the embeddings.
+
+        Returns:
+            Number of successfully inserted records.
+        """
         pass
 
     @abstractmethod
     def search_embeddings(
         self, query_embedding: List[float], top_k: int = 5
     ) -> List[dict]:
-        """Search for similar embeddings"""
+        """Search for embeddings similar to the query vector.
+
+        Args:
+            query_embedding: Query embedding vector to search for.
+            top_k: Number of top results to return.
+
+        Returns:
+            List of dictionaries containing similar embeddings and metadata.
+        """
         pass
 
 
 class MilvusService(DatabaseService):
-    """Milvus database service"""
+    """Milvus vector database service implementation.
+
+    Provides database operations using Milvus as the backend storage.
+    """
 
     def __init__(self, db_path: str, collection_name: str):
         self.db_path = db_path
@@ -40,7 +65,16 @@ class MilvusService(DatabaseService):
     def store_embeddings(
         self, embeddings: List[List[float]], texts: List[str], source: str = "generic"
     ) -> int:
-        """Store embeddings in Milvus"""
+        """Store embeddings in Milvus database.
+
+        Args:
+            embeddings: List of embedding vectors to store.
+            texts: List of text documents corresponding to embeddings.
+            source: Source label for the embeddings.
+
+        Returns:
+            Number of successfully inserted records.
+        """
         from dirac_dataset.data_access.milvus import store_embeddings_in_milvus
 
         return store_embeddings_in_milvus(
@@ -50,7 +84,15 @@ class MilvusService(DatabaseService):
     def search_embeddings(
         self, query_embedding: List[float], top_k: int = 5
     ) -> List[dict]:
-        """Search for similar embeddings in Milvus"""
+        """Search for similar embeddings in Milvus database.
+
+        Args:
+            query_embedding: Query embedding vector to search for.
+            top_k: Number of top results to return.
+
+        Returns:
+            List of dictionaries containing similar embeddings and metadata.
+        """
         from .milvus import search_embeddings_in_milvus
 
         return search_embeddings_in_milvus(
@@ -59,7 +101,10 @@ class MilvusService(DatabaseService):
 
 
 class ChromaService(DatabaseService):
-    """Chroma database service"""
+    """Chroma vector database service implementation.
+
+    Provides database operations using ChromaDB as the backend storage.
+    """
 
     def __init__(self, db_path: str, collection_name: str):
         self.db_path = db_path
@@ -75,7 +120,16 @@ class ChromaService(DatabaseService):
     def store_embeddings(
         self, embeddings: List[List[float]], texts: List[str], source: str = "generic"
     ) -> int:
-        """Store embeddings in Chroma"""
+        """Store embeddings in Chroma database.
+
+        Args:
+            embeddings: List of embedding vectors to store.
+            texts: List of text documents corresponding to embeddings.
+            source: Source label for the embeddings.
+
+        Returns:
+            Number of successfully inserted records.
+        """
         if not embeddings or not texts:
             return 0
 
@@ -90,7 +144,15 @@ class ChromaService(DatabaseService):
     def search_embeddings(
         self, query_embedding: List[float], top_k: int = 5
     ) -> List[dict]:
-        """Search for similar embeddings in Chroma"""
+        """Search for similar embeddings in Chroma database.
+
+        Args:
+            query_embedding: Query embedding vector to search for.
+            top_k: Number of top results to return.
+
+        Returns:
+            Dictionary containing search results from ChromaDB.
+        """
         results = self.collection.query(
             query_embeddings=[query_embedding], n_results=top_k
         )
@@ -98,7 +160,11 @@ class ChromaService(DatabaseService):
 
 
 class HuggingFaceService(DatabaseService):
-    """HuggingFace Dataset service for storing embeddings"""
+    """HuggingFace Dataset service for storing embeddings.
+
+    Provides database operations using HuggingFace Datasets as the backend storage.
+    Note: Search functionality is limited without FAISS integration.
+    """
 
     def __init__(self, db_path: str, collection_name: str):
         self.db_path = db_path
@@ -113,7 +179,16 @@ class HuggingFaceService(DatabaseService):
     def store_embeddings(
         self, embeddings: List[List[float]], texts: List[str], source: str = "generic"
     ) -> int:
-        """Store embeddings as HuggingFace Dataset"""
+        """Store embeddings as HuggingFace Dataset.
+
+        Args:
+            embeddings: List of embedding vectors to store.
+            texts: List of text documents corresponding to embeddings.
+            source: Source label for the embeddings.
+
+        Returns:
+            Number of successfully stored records.
+        """
         if not embeddings or not texts:
             return 0
 
@@ -126,19 +201,45 @@ class HuggingFaceService(DatabaseService):
     def search_embeddings(
         self, query_embedding: List[float], top_k: int = 5
     ) -> List[dict]:
-        """Search for similar embeddings in HuggingFace Dataset"""
+        """Search for similar embeddings in HuggingFace Dataset.
+
+        Note: Currently returns empty list as FAISS integration is not implemented.
+
+        Args:
+            query_embedding: Query embedding vector to search for.
+            top_k: Number of top results to return.
+
+        Returns:
+            Empty list (search not implemented without FAISS).
+        """
         # For now, return empty list - would need FAISS implementation
         return []
 
 
 class DatabaseFactory:
-    """Factory for creating database services"""
+    """Factory for creating database services.
+
+    Provides static methods to create appropriate database service instances
+    based on the specified database type.
+    """
 
     @staticmethod
     def create_database_service(
         db_type: str, db_path: str, collection_name: str
     ) -> DatabaseService:
-        """Create a database service based on type"""
+        """Create a database service instance based on the specified type.
+
+        Args:
+            db_type: Type of database service ("milvus", "chroma", "huggingface").
+            db_path: Path to the database storage location.
+            collection_name: Name of the collection/table to use.
+
+        Returns:
+            DatabaseService instance for the specified type.
+
+        Raises:
+            ValueError: If the database type is not supported.
+        """
         if db_type.lower() == "milvus":
             return MilvusService(db_path, collection_name)
         elif db_type.lower() == "chroma":

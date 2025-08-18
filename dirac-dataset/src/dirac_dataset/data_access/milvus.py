@@ -1,5 +1,7 @@
-"""
-Milvus database operations - moved from original milvus.py
+"""Milvus database operations.
+
+This module provides functions for storing and searching embeddings in Milvus
+vector database. It handles collection creation, indexing, and retrieval operations.
 """
 
 from typing import Optional
@@ -14,15 +16,21 @@ def store_embeddings_in_milvus(
     collection_name: str = "doc_embeddings",
     db_path: str = "./milvus_demo.db",
 ):
-    """
-    Store embeddings and texts into Milvus with indexing for retrieval.
+    """Store embeddings and texts into Milvus with indexing for retrieval.
 
-    Parameters:
-        embeddings: List[List[float]] - The embeddings to store.
-        texts: List[str] - Corresponding texts.
-        source: str - Source label ("paper", "doc", "issue", etc.) for tracking.
-        collection_name: str - Milvus collection name.
-        db_path: str - Local Milvus DB storage path.
+    Creates a Milvus collection if it doesn't exist, inserts the embeddings
+    with their corresponding texts and source labels, and creates an index
+    for efficient similarity search.
+
+    Args:
+        embeddings: The embedding vectors to store.
+        texts: Corresponding text documents for the embeddings.
+        source: Source label for tracking document origin.
+        collection_name: Name of the Milvus collection.
+        db_path: Path to the local Milvus database file.
+
+    Returns:
+        Number of successfully inserted embedding records.
     """
 
     # Initialize Milvus client
@@ -78,18 +86,21 @@ def search_embeddings_in_milvus(
     limit: int = 5,
     output_fields: Optional[list[str]] = None,
 ) -> list[dict]:
-    """
-    Search for similar embeddings in Milvus.
+    """Search for embeddings similar to the query vector in Milvus.
 
-    Parameters:
-        query_embedding: List[float] - The query embedding vector.
-        collection_name: str - Milvus collection name.
-        db_path: str - Local Milvus DB storage path.
-        limit: int - Number of results to return.
-        output_fields: List[str] - Fields to return in results.
+    Performs cosine similarity search in the specified Milvus collection
+    and returns the most similar embeddings with their metadata.
+
+    Args:
+        query_embedding: The query embedding vector to search for.
+        collection_name: Name of the Milvus collection to search.
+        db_path: Path to the local Milvus database file.
+        limit: Maximum number of results to return.
+        output_fields: List of fields to include in results, defaults to ["text", "source"].
 
     Returns:
-        List of dictionaries containing search results.
+        List of dictionaries containing search results with similarity scores and metadata.
+        Returns empty list if collection doesn't exist.
     """
     if output_fields is None:
         output_fields = ["text", "source"]

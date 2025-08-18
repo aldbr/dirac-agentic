@@ -7,16 +7,17 @@ requires-python = ">=3.11"
 dependencies = [
   "datasets",
   "llama-index",
-  "llama-index-embeddings-openai",
+  "llama-index-embeddings-huggingface",
   "llama-index-readers-file",
   "llama-index-readers-github",
+  "numpy",
   "pydantic",
   "pymilvus",
   "pypdf",
   "requests",
   "rich",
   "typer",
-  "numpy",
+  "torch",
   "types-requests",
 ]
 

@@ -1,6 +1,8 @@
 #!/usr/bin/env python
-"""
-CLI for dataset generation - Presentation Layer
+"""CLI for dataset generation - Presentation Layer.
+
+This module provides the command-line interface for dataset generation,
+handling user input, progress display, and result presentation using Rich UI components.
 """
 
 from __future__ import annotations
@@ -29,7 +31,11 @@ app = typer.Typer(add_completion=False)
 
 
 def _create_progress() -> Progress:
-    """Create a Rich progress bar with custom styling"""
+    """Create a Rich progress bar with custom styling.
+
+    Returns:
+        Configured Progress instance with spinner, bar, and timing columns.
+    """
     return Progress(
         SpinnerColumn(),
         TextColumn("[progress.description]{task.description}"),
@@ -56,8 +62,20 @@ def generate_dataset(
         False, "--verbose", "-v", help="Rich logging at DEBUG level"
     ),
 ):
-    """
-    Download PDFs, loads docs/issues/PRs/PDFs into a HuggingFace Dataset.
+    """Generate dataset from GitHub repositories and PDF files.
+
+    Downloads PDFs from provided URLs, processes documentation from GitHub
+    repositories, and creates a HuggingFace Dataset with separate splits for
+    papers and documentation.
+
+    Args:
+        repos_file: Path to JSON file containing repository configurations.
+        pdfs_file: Path to JSON file containing PDF URLs to download.
+        out: Output directory for the generated HuggingFace Dataset.
+        verbose: Enable debug-level logging for detailed progress information.
+
+    Raises:
+        typer.Exit: With code 1 if generation fails due to validation or processing errors.
     """
     console.print(
         Panel.fit(
@@ -72,6 +90,13 @@ def generate_dataset(
     progress_tasks: Dict[str, Any] = {}
 
     def progress_callback(task_name: str, current: int, total: int):
+        """Handle progress updates from the dataset generation process.
+
+        Args:
+            task_name: Name of the current task being processed.
+            current: Current progress count.
+            total: Total expected count for the task.
+        """
         if task_name not in progress_tasks:
             if task_name == "pdf_download":
                 progress_tasks[task_name] = progress.add_task(

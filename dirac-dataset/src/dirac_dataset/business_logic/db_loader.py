@@ -9,7 +9,11 @@ from typing import Callable, Optional
 
 from datasets import DatasetDict
 from dirac_dataset.log import logger
-from dirac_dataset.data_access.embedding_factory import EmbeddingFactory
+from dirac_dataset.business_logic.embedding_factory import (
+    create_embedding_service,
+    validate_model_name,
+    get_cpu_models,
+)
 from dirac_dataset.data_access.database_factory import DatabaseFactory
 
 
@@ -18,7 +22,7 @@ def load_dataset_to_database(
     db_type: str = "milvus",
     db_path: Path = Path("./vector_db"),
     collection_name: str = "doc_embeddings",
-    embedding_model: str = "openai",
+    embedding_model: str = "all-MiniLM-L6-v2",
     verbose: bool = False,
     progress_callback: Optional[Callable[[str, int, int], None]] = None,
 ) -> dict:
@@ -55,9 +59,18 @@ def load_dataset_to_database(
         logger.error(f"Failed to load dataset from {dataset_path}: {e}")
         raise ValueError(f"Could not load HuggingFace dataset: {e}")
 
+    # Validate embedding model before proceeding
+    if not validate_model_name(embedding_model):
+        available_models = list(get_cpu_models())[:3]  # Show first 3 CPU models
+        raise ValueError(
+            f"Invalid embedding model '{embedding_model}'. "
+            f"Available CPU-friendly models: {', '.join(available_models)}. "
+            f"Use --embedding <model_name> to specify a different model."
+        )
+
     # Get embedding model and database instances
     logger.debug(f"Initializing {embedding_model} embedding service")
-    embedding_service = EmbeddingFactory.create_embedding_service(embedding_model)
+    embedding_service = create_embedding_service(embedding_model)
 
     logger.debug(f"Initializing {db_type} database service at {db_path}")
     database_service = DatabaseFactory.create_database_service(
@@ -84,7 +97,7 @@ def load_dataset_to_database(
 
         # Generate embeddings
         logger.debug(f"Generating embeddings for {source} documents")
-        embeddings = embedding_service.get_embeddings(texts)
+        embeddings = embedding_service.get_text_embedding_batch(texts)
 
         # Store in database
         inserted_count = database_service.store_embeddings(
