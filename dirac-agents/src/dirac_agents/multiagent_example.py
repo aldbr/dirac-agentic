@@ -11,7 +11,7 @@ from smolagents.utils import encode_image_base64, make_image_url
 
 
 import math
-from typing import Optional, Tuple
+from typing import Tuple
 
 from smolagents import tool
 
@@ -20,7 +20,7 @@ from smolagents import tool
 def calculate_cargo_travel_time(
     origin_coords: Tuple[float, float],
     destination_coords: Tuple[float, float],
-    cruising_speed_kmh: Optional[float] = 750.0,  # Average speed for cargo planes
+    cruising_speed_kmh: float = 750.0,  # Average speed for cargo planes
 ) -> float:
     """
     Calculate the travel time for a cargo plane between two points on Earth using great-circle distance.
@@ -28,7 +28,7 @@ def calculate_cargo_travel_time(
     Args:
         origin_coords: Tuple of (latitude, longitude) for the starting point
         destination_coords: Tuple of (latitude, longitude) for the destination
-        cruising_speed_kmh: Optional cruising speed in km/h (defaults to 750 km/h for typical cargo planes)
+        cruising_speed_kmh: Cruising speed in km/h (defaults to 750 km/h for typical cargo planes)
 
     Returns:
         float: The estimated travel time in hours
