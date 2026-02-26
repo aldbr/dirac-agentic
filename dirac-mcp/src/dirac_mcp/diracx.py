@@ -2,7 +2,8 @@ from typing import List, Dict, Optional, Any
 from mcp.server.fastmcp import FastMCP
 
 from diracx.client.aio import AsyncDiracClient
-from diracx.core.models import ScalarSearchOperator, VectorSearchOperator
+
+from diracx.core.models.search import ScalarSearchOperator, VectorSearchOperator  # type: ignore[no-redef]
 
 # Create an MCP server
 mcp = FastMCP("DiracX Services")
