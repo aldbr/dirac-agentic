@@ -4,13 +4,22 @@
 
 # Dirac Agentic
 
-This repository is now split into three subprojects:
+Tools to build AI agents for the DIRAC/DiracX distributed computing infrastructure.
 
-- **dirac-mcp**: MCP server and related code
-- **dirac-agents**: Agents and tool code
-- **dirac-model**: Model finetuning tools (based on papers)
-- **dirac-dataset**: Tools to load papers, code, documentation into a vector DB
+## Architecture
 
+**Core tools** (generic, model-agnostic):
+- **dirac-mcp** — MCP server exposing DiracX functionality (FastMCP 3.0, stdio + streamable HTTP)
+- **dirac-dataset** — Dataset pipeline: papers, docs, code → HuggingFace Dataset
+
+**Examples** (open-source, any model):
+- **examples/agentic/** — Agent workflows (Smolagents, LangGraph)
+- **examples/rag/** — RAG chatbot with any OpenAI-compatible LLM
+- **examples/finetuning/** — QA dataset generation for model fine-tuning
+- **examples/multi-mcp/** — Multi-MCP server composition
+
+**Skills** (open standard):
+- **.agents/skills/** — Vendor-neutral skill definitions ([agentskills.io](https://agentskills.io) spec)
 
 ```mermaid
 ---
@@ -18,151 +27,132 @@ config:
   layout: elk
 ---
 flowchart TD
- subgraph Models["Models"]
-        any-model["Qwen, Mistral, OpenAI, DeepSeek, ..."]
-        dirac-model["**dirac-model** based on long term data - research papers"]
+ subgraph Core["Core Tools"]
+        dirac-mcp["**dirac-mcp**\nMCP Server (FastMCP 3.0)"]
+        dirac-dataset["**dirac-dataset**\nDataset Pipeline"]
   end
- subgraph Agents["Agents"]
-        frameworks["Frameworks - *Smolagents, LlamaIndex, LangGraph, ...*"]
-        dirac-agent1["**dirac-operator** leverages Dirac, Grafana tools"]
-        dirac-agent2["**dirac-developer** leverages Dirac, Github tools"]
-        dirac-agent3["**dirac-doc** leverages Dirac, DuckDuckGo tools"]
+ subgraph Examples["Examples"]
+        agentic["Agentic Workflows\n*Smolagents, LangGraph*"]
+        rag["RAG Chatbot\n*Milvus vector DB*"]
+        finetuning["Fine-tuning Tools"]
+        multi-mcp["Multi-MCP Composition"]
   end
- subgraph MCP_Servers["MCP Servers"]
-        sdk["Anthropic MCP SDK"]
-        dirac-mcp["**dirac-mcp** exposes tools to interact with Dirac"]
-        k8s-mcp["K8s-mcp"]
-        duckduckgo-mcp["DuckDuckGo-mcp"]
+ subgraph Skills["Agent Skills"]
+        submit-job["submit-job"]
+        debug-job["debug-job"]
   end
- subgraph Datasets["Datasets"]
-        dirac-dataset["Dirac Dataset [papers & documentation]"]
-  end
-    dirac-model -. based on .-> any-model
-    Models -- trained on/finetuned with --> Datasets
-    dirac-agent1 -. based on .-> frameworks
-    dirac-agent2 -. based on .-> frameworks
-    dirac-agent3 -. based on .-> frameworks
-    Models -- Provides domain knowledge, LLM completions --> Agents
-    Agents -- Connects to, orchestrates, and calls tools/resources on --> MCP_Servers
-    MCP_Servers -- provide data as resources --> Datasets
     dirac-mcp -. uses .-> dirac["DiracX Client"]
-    dirac-mcp -. based on .-> sdk
-    duckduckgo-mcp -. based on .-> sdk
-    k8s-mcp -. based on .-> sdk
-     dirac-model:::Peach
-     dirac-agent1:::Peach
-     dirac-agent2:::Peach
-     dirac-agent3:::Peach
+    rag -- loads dataset --> dirac-dataset
+    Examples -- connect via MCP --> dirac-mcp
+    Skills -- guide agents using --> dirac-mcp
      dirac-mcp:::Peach
      dirac-dataset:::Peach
      dirac:::Rose
     classDef Rose stroke-width:1px, stroke-dasharray:none, stroke:#FF5978, fill:#FFDFE5, color:#8E2236
     classDef Peach stroke-width:1px, stroke-dasharray:none, stroke:#FBB35A, fill:#FFEFDB, color:#8F632D
-
 ```
 
+## Quick Start
 
+### 1. Set up environments
 
-## Development Setup
+```bash
+# Install pixi (https://prefix.dev)
+pixi install
+```
 
-Each subproject has its own environment. We recommend using [pixi](https://prefix.dev/docs/pixi/) for environment management.
+### 2. Run the MCP server
 
-### 1. dirac-mcp
+```bash
+# stdio mode (for IDE integration)
+pixi run -e dirac-mcp dirac-mcp
 
-This subproject contains the MCP server and related code. **To interact with the MCP server, you must have a valid `diracx` access token** (usually set in your environment as `DIRACX_CREDENTIALS_PATH` or via your DiracX login). This token is required for authentication and to access the underlying DiracX instance.
+# Streamable HTTP mode (for web deployment)
+pixi run -e dirac-mcp mcp-http
 
-#### Contribute
+# Development inspector
+pixi run -e dirac-mcp mcp-dev
+```
 
-1. Open the `dirac-mcp` folder.
-2. Run `pixi install` to create the environment.
-4. Run your MCP server as needed, e.g.:
+### 3. Generate the dataset
 
-   ```bash
-   pixi run dirac-mcp
-   ```
+```bash
+# Generate a HuggingFace dataset from DIRAC sources
+pixi run -e dirac-dataset gen-dataset
 
+# Optionally push to HuggingFace Hub
+pixi run -e dirac-dataset push-to-hub ./my_dataset --repo-id myorg/dirac-docs
+```
 
-#### Run in Copilot Chat
+### 4. Run examples
 
-- Open the chat
-- Select the `Agent` mode
-- Click on `Select tools` and:
-  - `Add more tools`
-  - `Add MCP Server`
-  - `STDIO`
+Each example directory has its own `requirements.txt` and `README.md`:
 
-- Copy the following content to `settings.json`:
+```bash
+cd examples/rag
+pip install -r requirements.txt
+python rag_chatbot.py
+```
 
-  ```json
-  {
-    "mcp": {
-      "servers": {
-        "diracx": {
-          "type": "stdio",
-          "command": "docker",
-          "args": [
-            "run",
-            "-i",
-            "--rm",
-            "-e",
-            "DIRACX_URL",
-            "-e",
-            "DIRACX_CREDENTIALS_PATH",
-            "-v",
-            "/path/to/.cache/diracx/credentials.json:/tmp/credentials.json",
-            "dirac-mcp:latest"
-          ],
-          "env": {
-            "DIRACX_URL": "https://diracx-cert.app.cern.ch",
-            "DIRACX_CREDENTIALS_PATH": "/tmp/credentials.json"
-          }
+## MCP Server Integration
+
+### VS Code / Copilot Chat
+
+Add to your `settings.json`:
+
+```json
+{
+  "mcp": {
+    "servers": {
+      "diracx": {
+        "type": "stdio",
+        "command": "docker",
+        "args": [
+          "run", "-i", "--rm",
+          "-e", "DIRACX_URL",
+          "-e", "DIRACX_CREDENTIALS_PATH",
+          "-v", "/path/to/.cache/diracx/credentials.json:/tmp/credentials.json",
+          "dirac-mcp:latest"
+        ],
+        "env": {
+          "DIRACX_URL": "https://diracx-cert.app.cern.ch",
+          "DIRACX_CREDENTIALS_PATH": "/tmp/credentials.json"
         }
       }
     }
   }
-  ```
-
-- Log in your diracx instance
-- Start chatting about diracx
-
-**Examples:**
-- I want to create a diracx job that executes `echo "hello world". Can you do it for me?
-- Can you give me the latest failed jobs from diracx?
-
-### 2. dirac-agents
-
-This subproject is focused on building agents that interact with existing MCP servers (such as `dirac_mcp`) and other components. It provides agent logic, tool integration, and the ability to connect to and orchestrate workflows using the MCP protocol. You can use it to build advanced agents that leverage both the MCP server and additional tools or APIs.
-
-#### Contribute
-
-1. Open the `dirac-agents` folder.
-2. Run `pixi install` to create the environment.
-
-#### Leverage `dirac_mcp` in your agent
-
-The `dirac_agents` code can connect to an MCP server running from `dirac_mcp` using the MCP protocol. For example, see `client.py` in `dirac_agents`:
-
-```python
-from smolagents import ToolCollection, CodeAgent, InferenceClientModel
-from mcp.client.stdio import StdioServerParameters
-
-model = InferenceClientModel()
-server_parameters = StdioServerParameters(command="uv", args=["run", "server.py"])
-
-with ToolCollection.from_mcp(server_parameters, trust_remote_code=True) as tool_collection:
-    agent = CodeAgent(tools=[*tool_collection.tools], model=model)
-    agent.run("Can you submit a hello world job on diracx for me?")
+}
 ```
 
-This allows you to develop and run your MCP server and agents independently, but use them together for end-to-end workflows.
+### Docker
 
-### 3. dirac-model
+```bash
+docker build -f dirac-mcp/Dockerfile .
+docker run -p 8080:8080 \
+  -e DIRACX_URL=https://diracx-cert.app.cern.ch \
+  -e DIRACX_CREDENTIALS_PATH=/tmp/credentials.json \
+  -v /path/to/credentials.json:/tmp/credentials.json \
+  dirac-mcp:latest
+```
 
-This subproject contains code and tools for finetuning language models, with the goal of integrating general scientific knowledge (from papers and documentation) into the models. The resulting models can be used to enhance agent capabilities and provide more domain-specific knowledge. (Deployment instructions and advanced usage will be added in the future.)
+## Development
 
-1. Open the `dirac-agents` folder.
-2. Run `pixi install` to create the environment.
+```bash
+# Run tests
+pixi run -e dirac-mcp test-mcp
+pixi run -e dirac-dataset test-dataset
 
-### 4. dirac-dataset
+# Type checking
+pixi run -e dirac-mcp mypy-mcp
+pixi run -e dirac-dataset mypy-dataset
 
-This subproject provides tools to load research papers, documentation, and code from various sources (such as GitHub repositories and PDFs) into a vector database using LangChain. It supports downloading, parsing, and chunking documents, making them ready for retrieval-augmented generation (RAG) and other AI workflows. The resulting vector DB can be used to enhance search, question answering, and agent capabilities with domain-specific knowledge.
+# Linting & formatting
+pre-commit run --all-files
+```
+
+## Authentication
+
+DiracX operations require valid credentials:
+- Set `DIRACX_URL` to your DiracX instance URL
+- Set `DIRACX_CREDENTIALS_PATH` to your credentials file path
+- Log in to your DiracX instance before using the MCP server

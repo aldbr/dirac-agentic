@@ -1,0 +1,8 @@
+datasets
+torch
+transformers
+bitsandbytes
+tqdm
+pymupdf
+rich
+pydantic

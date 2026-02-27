@@ -1,28 +1,18 @@
-#!/usr/bin/env python
-"""
-Main CLI entry point for dirac-dataset - now using 3-layer architecture
+"""CLI entry point for dirac-dataset.
 
-Examples
---------
-python -m dirac_dataset gen-dataset --repos-file repos.json --pdfs-file pdfs.txt
-python -m dirac_dataset load-db --repos-file repos.json --pdfs-file pdfs.txt --db-type milvus
+Usage:
+    python -m dirac_dataset gen-dataset --repos-file repos.json --pdfs-file pdfs.json --out ./my_dataset
+    python -m dirac_dataset push-to-hub ./my_dataset --repo-id myorg/dirac-docs
 """
 
 import typer
-from dirac_dataset.presentation.gen_dataset import generate_dataset
-from dirac_dataset.presentation.db_loader import load_db
-from dirac_dataset.presentation.model_info import app as model_app
+
+from dirac_dataset.cli import gen_dataset, push_to_hub
 
 app = typer.Typer(add_completion=False)
 
-# Add commands directly
-app.command("gen-dataset")(generate_dataset)
-app.command("load-db")(load_db)
-
-# Add model info commands as a subcommand group
-app.add_typer(
-    model_app, name="models", help="Embedding model information and utilities"
-)
+app.command("gen-dataset")(gen_dataset)
+app.command("push-to-hub")(push_to_hub)
 
 
 if __name__ == "__main__":

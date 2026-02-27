@@ -1,0 +1,5 @@
+datasets
+llama-index-embeddings-huggingface
+openai
+pymilvus
+rich

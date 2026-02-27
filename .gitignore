@@ -7,8 +7,15 @@ wheels/
 *.egg-info
 data/dirac_*
 
+# Vector DB files
+*.db
+
 # Virtual environments
 .venv
 
 # IDE files
 .idea/
+
+# Examples output
+examples/*/output/
+examples/*/.env

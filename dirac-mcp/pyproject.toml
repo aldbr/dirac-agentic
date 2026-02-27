@@ -6,5 +6,18 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
   "diracx",
-  "mcp[cli]"
+  "fastmcp>=3.0",
 ]
+
+[project.optional-dependencies]
+test = [
+  "pytest",
+  "pytest-mock",
+]
+
+[project.scripts]
+dirac-mcp = "dirac_mcp.server:main"
+
+# Future: DiracX extension entrypoint (uncomment when extension.py is implemented)
+# [project.entry-points."diracx.extensions"]
+# mcp = "dirac_mcp.extension:router"

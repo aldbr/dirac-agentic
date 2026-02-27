@@ -9,7 +9,7 @@ on:
       - main
 
 jobs:
-  test-dirac-agentic:
+  test-dirac-dataset:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -29,3 +29,24 @@ jobs:
 
       - name: Run mypy type checking
         run: pixi run -e dirac-dataset mypy-dataset
+
+  test-dirac-mcp:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up pixi
+        uses: prefix-dev/setup-pixi@v0.8.3
+        with:
+          pixi-version: latest
+          cache: true
+
+      - name: Install dependencies
+        run: pixi install -e dirac-mcp
+
+      - name: Run unit tests
+        run: pixi run -e dirac-mcp test-mcp
+
+      - name: Run mypy type checking
+        run: pixi run -e dirac-mcp mypy-mcp

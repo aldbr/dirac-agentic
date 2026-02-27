@@ -5,11 +5,11 @@ Unit tests for dataset generation public API
 import json
 import tempfile
 from pathlib import Path
-import pytest
-from pytest_mock import MockerFixture
 
+import pytest
+from dirac_dataset.generator import Repo, generate_dataset
 from llama_index.core.schema import TextNode
-from dirac_dataset.business_logic.gen_dataset import generate_dataset, Repo
+from pytest_mock import MockerFixture
 
 
 @pytest.fixture
@@ -37,32 +37,20 @@ def test_generate_dataset_success(mock_environment, temp_files, mocker: MockerFi
     repos_file, pdfs_file, out_dir = temp_files
 
     # Setup mocks
-    mock_load_repos = mocker.patch(
-        "dirac_dataset.business_logic.gen_dataset._load_repos_file"
-    )
-    mock_load_pdfs_file = mocker.patch(
-        "dirac_dataset.business_logic.gen_dataset._load_pdfs_file"
-    )
-    mock_load_pdfs = mocker.patch("dirac_dataset.business_logic.gen_dataset._load_pdfs")
-    mock_load_doc = mocker.patch("dirac_dataset.business_logic.gen_dataset._load_doc")
-    mock_download_pdf = mocker.patch(
-        "dirac_dataset.business_logic.gen_dataset._download_pdf"
-    )
+    mock_load_repos = mocker.patch("dirac_dataset.generator._load_repos_file")
+    mock_load_pdfs_file = mocker.patch("dirac_dataset.generator._load_pdfs_file")
+    mock_load_pdfs = mocker.patch("dirac_dataset.generator._load_pdfs")
+    mock_load_doc = mocker.patch("dirac_dataset.generator._load_doc")
+    mock_download_pdf = mocker.patch("dirac_dataset.generator._download_pdf")
     mocker.patch("shutil.rmtree")
 
     # Configure mock return values
-    mock_load_repos.return_value = [
-        Repo(url="https://github.com/owner/repo", branch="main")
-    ]
+    mock_load_repos.return_value = [Repo(url="https://github.com/owner/repo", branch="main")]
     mock_load_pdfs_file.return_value = ["https://example.com/paper.pdf"]
 
-    mock_load_pdfs.return_value = [
-        TextNode(text="PDF content", metadata={"source": "paper.pdf"})
-    ]
+    mock_load_pdfs.return_value = [TextNode(text="PDF content", metadata={"source": "paper.pdf"})]
 
-    mock_load_doc.return_value = [
-        TextNode(text="Repo content", metadata={"source": "README.md"})
-    ]
+    mock_load_doc.return_value = [TextNode(text="Repo content", metadata={"source": "README.md"})]
 
     mock_download_pdf.return_value = Path("/tmp/paper.pdf")
 
@@ -83,9 +71,7 @@ def test_generate_dataset_success(mock_environment, temp_files, mocker: MockerFi
     mock_load_repos.assert_called_once_with(repos_file)
     mock_load_pdfs_file.assert_called_once_with(pdfs_file)
     mock_load_pdfs.assert_called_once()
-    mock_load_doc.assert_called_once_with(
-        "https://github.com/owner/repo", branch="main"
-    )
+    mock_load_doc.assert_called_once_with("https://github.com/owner/repo", branch="main")
     mock_download_pdf.assert_called_once()
 
 
@@ -96,15 +82,11 @@ def test_generate_dataset_missing_github_token(temp_files, monkeypatch):
     # Clear environment variables
     monkeypatch.delenv("GITHUB_TOKEN", raising=False)
 
-    with pytest.raises(
-        ValueError, match="GITHUB_TOKEN environment variable is required"
-    ):
+    with pytest.raises(ValueError, match="GITHUB_TOKEN environment variable is required"):
         generate_dataset(repos_file, pdfs_file, out_dir)
 
 
-def test_generate_dataset_progress_callback(
-    mock_environment, temp_files, mocker: MockerFixture
-):
+def test_generate_dataset_progress_callback(mock_environment, temp_files, mocker: MockerFixture):
     """Test that progress callback is called during generation."""
     repos_file, pdfs_file, out_dir = temp_files
     progress_calls = []
@@ -113,22 +95,14 @@ def test_generate_dataset_progress_callback(
         progress_calls.append((phase, current, total))
 
     # Setup mocks
-    mock_load_repos = mocker.patch(
-        "dirac_dataset.business_logic.gen_dataset._load_repos_file"
-    )
-    mock_load_pdfs_file = mocker.patch(
-        "dirac_dataset.business_logic.gen_dataset._load_pdfs_file"
-    )
-    mock_load_pdfs = mocker.patch("dirac_dataset.business_logic.gen_dataset._load_pdfs")
-    mock_load_doc = mocker.patch("dirac_dataset.business_logic.gen_dataset._load_doc")
-    mock_download_pdf = mocker.patch(
-        "dirac_dataset.business_logic.gen_dataset._download_pdf"
-    )
+    mock_load_repos = mocker.patch("dirac_dataset.generator._load_repos_file")
+    mock_load_pdfs_file = mocker.patch("dirac_dataset.generator._load_pdfs_file")
+    mock_load_pdfs = mocker.patch("dirac_dataset.generator._load_pdfs")
+    mock_load_doc = mocker.patch("dirac_dataset.generator._load_doc")
+    mock_download_pdf = mocker.patch("dirac_dataset.generator._download_pdf")
     mocker.patch("shutil.rmtree")
 
-    mock_load_repos.return_value = [
-        Repo(url="https://github.com/owner/repo", branch="main")
-    ]
+    mock_load_repos.return_value = [Repo(url="https://github.com/owner/repo", branch="main")]
     mock_load_pdfs_file.return_value = ["https://example.com/paper.pdf"]
     mock_load_pdfs.return_value = [TextNode(text="PDF", metadata={})]
     mock_load_doc.return_value = [TextNode(text="Doc", metadata={})]
@@ -150,22 +124,16 @@ def test_generate_dataset_progress_callback(
     assert len(repo_calls) >= 2  # Start and end
 
 
-def test_generate_dataset_multiple_repos(
-    mock_environment, temp_files, mocker: MockerFixture
-):
+def test_generate_dataset_multiple_repos(mock_environment, temp_files, mocker: MockerFixture):
     """Test dataset generation with multiple repositories."""
     repos_file, pdfs_file, out_dir = temp_files
 
     # Setup mocks
-    mock_load_repos = mocker.patch(
-        "dirac_dataset.business_logic.gen_dataset._load_repos_file"
-    )
-    mock_load_pdfs_file = mocker.patch(
-        "dirac_dataset.business_logic.gen_dataset._load_pdfs_file"
-    )
-    mock_load_pdfs = mocker.patch("dirac_dataset.business_logic.gen_dataset._load_pdfs")
-    mock_load_doc = mocker.patch("dirac_dataset.business_logic.gen_dataset._load_doc")
-    mocker.patch("dirac_dataset.business_logic.gen_dataset._download_pdf")
+    mock_load_repos = mocker.patch("dirac_dataset.generator._load_repos_file")
+    mock_load_pdfs_file = mocker.patch("dirac_dataset.generator._load_pdfs_file")
+    mock_load_pdfs = mocker.patch("dirac_dataset.generator._load_pdfs")
+    mock_load_doc = mocker.patch("dirac_dataset.generator._load_doc")
+    mocker.patch("dirac_dataset.generator._download_pdf")
     mocker.patch("shutil.rmtree")
 
     # Configure multiple repos
@@ -175,9 +143,7 @@ def test_generate_dataset_multiple_repos(
     ]
     mock_load_pdfs_file.return_value = []
     mock_load_pdfs.return_value = []
-    mock_load_doc.return_value = [
-        TextNode(text="Content from repo1", metadata={"source": "repo1"})
-    ]
+    mock_load_doc.return_value = [TextNode(text="Content from repo1", metadata={"source": "repo1"})]
 
     result = generate_dataset(repos_file, pdfs_file, out_dir)
 
@@ -186,24 +152,16 @@ def test_generate_dataset_multiple_repos(
     assert result["md_docs"] == 2  # mock_load_doc returns 1 doc but is called twice
 
 
-def test_generate_dataset_multiple_pdfs(
-    mock_environment, temp_files, mocker: MockerFixture
-):
+def test_generate_dataset_multiple_pdfs(mock_environment, temp_files, mocker: MockerFixture):
     """Test dataset generation with multiple PDFs."""
     repos_file, pdfs_file, out_dir = temp_files
 
     # Setup mocks
-    mock_load_repos = mocker.patch(
-        "dirac_dataset.business_logic.gen_dataset._load_repos_file"
-    )
-    mock_load_pdfs_file = mocker.patch(
-        "dirac_dataset.business_logic.gen_dataset._load_pdfs_file"
-    )
-    mock_load_pdfs = mocker.patch("dirac_dataset.business_logic.gen_dataset._load_pdfs")
-    mock_download_pdf = mocker.patch(
-        "dirac_dataset.business_logic.gen_dataset._download_pdf"
-    )
-    mocker.patch("dirac_dataset.business_logic.gen_dataset._load_doc")
+    mock_load_repos = mocker.patch("dirac_dataset.generator._load_repos_file")
+    mock_load_pdfs_file = mocker.patch("dirac_dataset.generator._load_pdfs_file")
+    mock_load_pdfs = mocker.patch("dirac_dataset.generator._load_pdfs")
+    mock_download_pdf = mocker.patch("dirac_dataset.generator._download_pdf")
+    mocker.patch("dirac_dataset.generator._load_doc")
     mocker.patch("shutil.rmtree")
 
     # Configure multiple PDFs
@@ -234,15 +192,11 @@ def test_generate_dataset_error_handling_repo_failure(
     repos_file, pdfs_file, out_dir = temp_files
 
     # Setup mocks
-    mock_load_repos = mocker.patch(
-        "dirac_dataset.business_logic.gen_dataset._load_repos_file"
-    )
-    mock_load_pdfs_file = mocker.patch(
-        "dirac_dataset.business_logic.gen_dataset._load_pdfs_file"
-    )
-    mock_load_pdfs = mocker.patch("dirac_dataset.business_logic.gen_dataset._load_pdfs")
-    mock_load_doc = mocker.patch("dirac_dataset.business_logic.gen_dataset._load_doc")
-    mocker.patch("dirac_dataset.business_logic.gen_dataset._download_pdf")
+    mock_load_repos = mocker.patch("dirac_dataset.generator._load_repos_file")
+    mock_load_pdfs_file = mocker.patch("dirac_dataset.generator._load_pdfs_file")
+    mock_load_pdfs = mocker.patch("dirac_dataset.generator._load_pdfs")
+    mock_load_doc = mocker.patch("dirac_dataset.generator._load_doc")
+    mocker.patch("dirac_dataset.generator._download_pdf")
     mocker.patch("shutil.rmtree")
 
     # Configure repos with one that will fail
@@ -274,17 +228,11 @@ def test_generate_dataset_error_handling_pdf_failure(
     repos_file, pdfs_file, out_dir = temp_files
 
     # Setup mocks
-    mock_load_repos = mocker.patch(
-        "dirac_dataset.business_logic.gen_dataset._load_repos_file"
-    )
-    mock_load_pdfs_file = mocker.patch(
-        "dirac_dataset.business_logic.gen_dataset._load_pdfs_file"
-    )
-    mock_load_pdfs = mocker.patch("dirac_dataset.business_logic.gen_dataset._load_pdfs")
-    mock_download_pdf = mocker.patch(
-        "dirac_dataset.business_logic.gen_dataset._download_pdf"
-    )
-    mocker.patch("dirac_dataset.business_logic.gen_dataset._load_doc")
+    mock_load_repos = mocker.patch("dirac_dataset.generator._load_repos_file")
+    mock_load_pdfs_file = mocker.patch("dirac_dataset.generator._load_pdfs_file")
+    mock_load_pdfs = mocker.patch("dirac_dataset.generator._load_pdfs")
+    mock_download_pdf = mocker.patch("dirac_dataset.generator._download_pdf")
+    mocker.patch("dirac_dataset.generator._load_doc")
     mocker.patch("shutil.rmtree")
 
     # Configure PDFs with some that will fail

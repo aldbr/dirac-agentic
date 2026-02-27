@@ -1,28 +1,23 @@
 [project]
 name = "dirac-dataset"
 version = "0.1.0"
-description = "RAG tools for Dirac Agentic"
+description = "HuggingFace dataset generation tools for Dirac Agentic"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
   "datasets",
+  "huggingface_hub",
   "llama-index",
-  "llama-index-embeddings-huggingface",
   "llama-index-readers-file",
   "llama-index-readers-github",
   "numpy",
   "pydantic",
-  "pymilvus",
   "pypdf",
   "requests",
   "rich",
   "typer",
-  "torch",
   "types-requests",
 ]
 
 [project.optional-dependencies]
-chroma = ["chromadb"]
-huggingface = ["sentence-transformers"]
 test = ["pytest", "pytest-mock"]
-all = ["chromadb", "sentence-transformers"]

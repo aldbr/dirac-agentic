@@ -5,18 +5,13 @@ platforms = ["linux-64", "osx-arm64"]
 
 [environments]
 dirac-mcp = { features = ["dirac-mcp"], solve-group = "dirac-mcp" }
-dirac-agents = { features = ["dirac-agents"], solve-group = "dirac-agents" }
-dirac-model = { features = ["dirac-model"], solve-group = "dirac-model" }
 dirac-dataset = { features = ["dirac-dataset"], solve-group = "dirac-dataset" }
 
 [feature.dirac-mcp.pypi-dependencies]
 dirac-mcp = { path = "dirac-mcp", editable = true }
-
-[feature.dirac-agents.pypi-dependencies]
-dirac-agents = { path = "dirac-agents", editable = true }
-
-[feature.dirac-model.pypi-dependencies]
-dirac-model = { path = "dirac-model", editable = true }
+pytest = "*"
+pytest-mock = "*"
+mypy = "*"
 
 [feature.dirac-dataset.pypi-dependencies]
 dirac-dataset = { path = "dirac-dataset", editable = true, extras = ["test"] }
@@ -29,28 +24,28 @@ pip = ">=25.1.1"
 
 
 [feature.dirac-mcp.tasks.mcp-dev]
-cmd = "cd dirac-mcp/src/dirac_mcp && mcp dev diracx.py"
+cmd = "fastmcp dev dirac-mcp/src/dirac_mcp/server.py"
 
 [feature.dirac-mcp.tasks.dirac-mcp]
-cmd = "cd dirac-mcp/src/dirac_mcp && mcp run diracx.py"
+cmd = "fastmcp run dirac-mcp/src/dirac_mcp/server.py"
+
+[feature.dirac-mcp.tasks.mcp-http]
+cmd = "cd dirac-mcp && python -m dirac_mcp.server"
+
+[feature.dirac-mcp.tasks.test-mcp]
+cmd = "cd dirac-mcp && python -m pytest test/ -v"
+
+[feature.dirac-mcp.tasks.mypy-mcp]
+cmd = "cd dirac-mcp && mypy src/"
 
 [feature.dirac-dataset.tasks.gen-dataset]
 cmd = "cd dirac-dataset && python -m dirac_dataset gen-dataset"
 
-[feature.dirac-dataset.tasks.load-db]
-cmd = "cd dirac-dataset && python -m dirac_dataset load-db"
+[feature.dirac-dataset.tasks.push-to-hub]
+cmd = "cd dirac-dataset && python -m dirac_dataset push-to-hub"
 
 [feature.dirac-dataset.tasks.test-dataset]
 cmd = "cd dirac-dataset && python -m pytest test/ -v"
-
-[feature.dirac-dataset.tasks.models-summary]
-cmd = "cd dirac-dataset && python -m dirac_dataset models summary"
-
-[feature.dirac-dataset.tasks.models-list]
-cmd = "cd dirac-dataset && python -m dirac_dataset models list"
-
-[feature.dirac-dataset.tasks.models-recommend]
-cmd = "cd dirac-dataset && python -m dirac_dataset models recommend"
 
 [feature.dirac-dataset.tasks.mypy-dataset]
 cmd = "cd dirac-dataset && mypy src/ test/"
