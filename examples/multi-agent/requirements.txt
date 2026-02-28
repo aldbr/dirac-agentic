@@ -1,0 +1,6 @@
+langgraph
+langgraph-prebuilt
+langgraph-supervisor
+langchain-mcp-adapters
+langchain-huggingface
+mcp

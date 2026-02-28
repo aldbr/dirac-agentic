@@ -5,7 +5,7 @@ dirac-mcp server via the MCP protocol over stdio.
 
 Usage:
     pip install -r requirements.txt
-    python simple_agent.py
+    python diracx_agent.py
 """
 
 from mcp.client.stdio import StdioServerParameters

@@ -18,10 +18,9 @@ Usage:
 
 import os
 
-import dirac_mcp.prompts.jobs  # noqa: F401
 import dirac_mcp.resources.jobs  # noqa: F401
 
-# Register all tools, prompts, and resources by importing the modules.
+# Register all tools and resources by importing the modules.
 # The decorators in each module register against the shared `mcp` instance.
 import dirac_mcp.tools.jobs  # noqa: F401
 

@@ -1,6 +1,6 @@
 # RAG Chatbot Example
 
-A self-contained RAG chatbot that indexes DIRAC documentation into a local Milvus vector DB and answers questions using any OpenAI-compatible LLM.
+A self-contained RAG chatbot that indexes DIRAC documentation into a local Milvus vector DB and answers questions using HuggingFace Inference API with open-source models.
 
 ## Prerequisites
 
@@ -16,24 +16,15 @@ A HuggingFace dataset, either:
 
 ```bash
 pip install -r requirements.txt
-export OPENAI_API_KEY=your_key
+export HF_TOKEN=your_token
 ```
 
-### Using alternative LLM providers
+### Configuration
 
-Any OpenAI-compatible endpoint works:
-
-```bash
-# Ollama
-export OPENAI_BASE_URL=http://localhost:11434/v1
-export OPENAI_API_KEY=ollama
-export OPENAI_MODEL=llama3
-
-# Together AI
-export OPENAI_BASE_URL=https://api.together.xyz/v1
-export OPENAI_API_KEY=your_together_key
-export OPENAI_MODEL=meta-llama/Llama-3-70b-chat-hf
-```
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `HF_TOKEN` | HuggingFace API token (required for gated models / higher rate limits) | — |
+| `HF_MODEL` | Model to use for chat generation | `meta-llama/Meta-Llama-3.1-8B-Instruct` |
 
 ## Usage
 

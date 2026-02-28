@@ -1,6 +1,0 @@
-smolagents
-huggingface_hub
-pillow
-mcp
-langgraph
-langchain-core

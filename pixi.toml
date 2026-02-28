@@ -6,6 +6,10 @@ platforms = ["linux-64", "osx-arm64"]
 [environments]
 dirac-mcp = { features = ["dirac-mcp"], solve-group = "dirac-mcp" }
 dirac-dataset = { features = ["dirac-dataset"], solve-group = "dirac-dataset" }
+example-single-agent = { features = ["example-single-agent"], solve-group = "example-single-agent" }
+example-multi-agent = { features = ["example-multi-agent"], solve-group = "example-multi-agent" }
+example-rag = { features = ["example-rag"], solve-group = "example-rag" }
+
 
 [feature.dirac-mcp.pypi-dependencies]
 dirac-mcp = { path = "dirac-mcp", editable = true }
@@ -49,3 +53,32 @@ cmd = "cd dirac-dataset && python -m pytest test/ -v"
 
 [feature.dirac-dataset.tasks.mypy-dataset]
 cmd = "cd dirac-dataset && mypy src/ test/"
+
+# Example environments
+
+[feature.example-single-agent.pypi-dependencies]
+smolagents = "*"
+mcp = "*"
+
+[feature.example-single-agent.tasks.diracx-agent]
+cmd = "python examples/single-agent/diracx_agent.py"
+
+[feature.example-multi-agent.pypi-dependencies]
+langgraph = "*"
+langgraph-prebuilt = "*"
+langgraph-supervisor = "*"
+langchain-mcp-adapters = "*"
+langchain-huggingface = "*"
+
+[feature.example-multi-agent.tasks.debug-production]
+cmd = "python examples/multi-agent/debug_production.py"
+
+[feature.example-rag.pypi-dependencies]
+datasets = "*"
+llama-index-embeddings-huggingface = "*"
+huggingface-hub = "*"
+pymilvus = "*"
+rich = "*"
+
+[feature.example-rag.tasks.rag-chatbot]
+cmd = "python examples/rag/rag_chatbot.py"

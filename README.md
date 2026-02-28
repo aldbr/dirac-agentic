@@ -13,10 +13,10 @@ Tools to build AI agents for the DIRAC/DiracX distributed computing infrastructu
 - **dirac-dataset** — Dataset pipeline: papers, docs, code → HuggingFace Dataset
 
 **Examples** (open-source, any model):
-- **examples/agentic/** — Agent workflows (Smolagents, LangGraph)
+- **examples/single-agent/** — Single-agent workflows with dirac-mcp (Smolagents)
+- **examples/multi-agent/** — Multi-agent production debugging (LangGraph, DiracX + LbAPI)
 - **examples/rag/** — RAG chatbot with any OpenAI-compatible LLM
 - **examples/finetuning/** — QA dataset generation for model fine-tuning
-- **examples/multi-mcp/** — Multi-MCP server composition
 
 **Skills** (open standard):
 - **.agents/skills/** — Vendor-neutral skill definitions ([agentskills.io](https://agentskills.io) spec)
@@ -32,10 +32,10 @@ flowchart TD
         dirac-dataset["**dirac-dataset**\nDataset Pipeline"]
   end
  subgraph Examples["Examples"]
-        agentic["Agentic Workflows\n*Smolagents, LangGraph*"]
+        single-agent["Single-Agent\n*Smolagents*"]
+        multi-agent["Multi-Agent\n*LangGraph Supervisor*"]
         rag["RAG Chatbot\n*Milvus vector DB*"]
         finetuning["Fine-tuning Tools"]
-        multi-mcp["Multi-MCP Composition"]
   end
  subgraph Skills["Agent Skills"]
         submit-job["submit-job"]
@@ -86,15 +86,76 @@ pixi run -e dirac-dataset push-to-hub ./my_dataset --repo-id myorg/dirac-docs
 
 ### 4. Run examples
 
-Each example directory has its own `requirements.txt` and `README.md`:
+Each example has a pixi environment (and a `requirements.txt` for non-pixi users):
 
 ```bash
-cd examples/rag
-pip install -r requirements.txt
-python rag_chatbot.py
+# Single-agent: Smolagents + dirac-mcp
+pixi run -e example-single-agent diracx-agent
+
+# Multi-agent: LangGraph supervisor with DiracX + LbAPI
+export HF_TOKEN=your_token
+pixi run -e example-multi-agent debug-production
+
+# RAG chatbot
+pixi run -e example-rag rag-chatbot
+
+# Fine-tuning QA generation
+pixi run -e example-finetuning generate-qa
 ```
 
 ## MCP Server Integration
+
+### Claude Code
+
+Add a `.mcp.json` file at the root of your project:
+
+```json
+{
+  "mcpServers": {
+    "dirac-mcp": {
+      "command": "pixi",
+      "args": ["run", "-e", "dirac-mcp", "python", "-m", "dirac_mcp"],
+      "env": {
+        "DIRACX_URL": "https://diracx-cert.app.cern.ch",
+        "DIRACX_CREDENTIALS_PATH": "/path/to/credentials.json"
+      }
+    }
+  }
+}
+```
+
+Or via CLI:
+
+```bash
+claude mcp add dirac-mcp -- pixi run -e dirac-mcp python -m dirac_mcp
+```
+
+For a remote server (streamable HTTP):
+
+```bash
+claude mcp add --transport http dirac-mcp https://your-server:8080/mcp
+```
+
+### Claude Desktop
+
+Add to your `claude_desktop_config.json` (stdio only):
+
+```json
+{
+  "mcpServers": {
+    "dirac-mcp": {
+      "command": "pixi",
+      "args": ["run", "-e", "dirac-mcp", "python", "-m", "dirac_mcp"],
+      "env": {
+        "DIRACX_URL": "https://diracx-cert.app.cern.ch",
+        "DIRACX_CREDENTIALS_PATH": "/path/to/credentials.json"
+      }
+    }
+  }
+}
+```
+
+Config file location: `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS), `~/.config/Claude/claude_desktop_config.json` (Linux).
 
 ### VS Code / Copilot Chat
 
@@ -106,17 +167,11 @@ Add to your `settings.json`:
     "servers": {
       "diracx": {
         "type": "stdio",
-        "command": "docker",
-        "args": [
-          "run", "-i", "--rm",
-          "-e", "DIRACX_URL",
-          "-e", "DIRACX_CREDENTIALS_PATH",
-          "-v", "/path/to/.cache/diracx/credentials.json:/tmp/credentials.json",
-          "dirac-mcp:latest"
-        ],
+        "command": "pixi",
+        "args": ["run", "-e", "dirac-mcp", "python", "-m", "dirac_mcp"],
         "env": {
           "DIRACX_URL": "https://diracx-cert.app.cern.ch",
-          "DIRACX_CREDENTIALS_PATH": "/tmp/credentials.json"
+          "DIRACX_CREDENTIALS_PATH": "/path/to/credentials.json"
         }
       }
     }
@@ -126,6 +181,8 @@ Add to your `settings.json`:
 
 ### Docker
 
+For remote deployment with streamable HTTP:
+
 ```bash
 docker build -f dirac-mcp/Dockerfile .
 docker run -p 8080:8080 \
@@ -134,6 +191,8 @@ docker run -p 8080:8080 \
   -v /path/to/credentials.json:/tmp/credentials.json \
   dirac-mcp:latest
 ```
+
+Then connect from Claude Code: `claude mcp add --transport http dirac-mcp https://your-server:8080/mcp`
 
 ## Development
 

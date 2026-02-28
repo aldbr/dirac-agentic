@@ -28,12 +28,7 @@ class TestServerInstantiation:
         assert "submit_job" in tool_names
         assert "create_basic_jdl" in tool_names
         assert "get_job_status_summary" in tool_names
-
-    def test_job_prompts_registered(self):
-        import dirac_mcp.prompts.jobs  # noqa: F401
-
-        prompts = _run(mcp.list_prompts())
-        prompt_names = [p.name for p in prompts]
-        assert "job_analysis_prompt" in prompt_names
-        assert "job_search_prompt" in prompt_names
-        assert "jdl_creation_prompt" in prompt_names
+        assert "get_job_sandboxes" in tool_names
+        assert "set_job_statuses" in tool_names
+        assert "reschedule_jobs" in tool_names
+        assert "get_job_metadata" in tool_names

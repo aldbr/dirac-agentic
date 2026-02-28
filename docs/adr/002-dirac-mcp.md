@@ -64,7 +64,7 @@ mcp = "dirac_mcp.extension:router"
 
 The extension module would expose the FastMCP app as a FastAPI-compatible ASGI app via `mcp.http_app()`, and DiracX's `create_app()` would mount it with JWT authentication middleware automatically applied.
 
-**Key property**: the MCP protocol layer (tool schemas, prompts, resources) is shared between both modes. What changes is how DiracX is called.
+**Key property**: the MCP protocol layer (tool schemas, resources) is shared between both modes. What changes is how DiracX is called.
 
 ## 3 Architecture
 
@@ -73,7 +73,7 @@ The extension module would expose the FastMCP app as a FastAPI-compatible ASGI a
 The value of dirac-mcp is the **MCP protocol adapter**, not the business logic:
 
 - **Tool schemas**: Parameter types, descriptions, return formats that AI agents understand
-- **Prompt definitions**: Guides that help agents formulate searches, analyze failures, create JDL
+- **Tool annotations**: MCP annotations (`readOnlyHint`, `destructiveHint`, etc.) for client UX
 - **Resource URIs**: `dirac-job://{id}`, `dirac-dashboard://jobs`
 - **JDL generation**: `create_basic_jdl()` is pure logic, useful in both modes
 
@@ -112,8 +112,6 @@ dirac-mcp/src/dirac_mcp/
 ├── server.py           # Standalone entry point (stdio + streamable HTTP)
 ├── tools/
 │   └── jobs.py         # Tool implementations (currently uses AsyncDiracClient)
-├── prompts/
-│   └── jobs.py         # Prompt definitions (shared by both modes)
 └── resources/
     └── jobs.py         # Resource definitions (shared by both modes)
 ```
@@ -124,9 +122,9 @@ All modules register against the shared `mcp` instance in `app.py` via decorator
 
 When implementing the extension, the tool layer will need refactoring:
 
-1. **Prompts and resources**: No change needed — they're already mode-agnostic
+1. **Resources**: No change needed — they're already mode-agnostic
 2. **`create_basic_jdl`**: No change needed — pure function, no DiracX calls
-3. **`search_jobs`, `get_job`, `submit_job`, `get_job_status_summary`**: Replace `AsyncDiracClient()` HTTP calls with direct imports from DiracX's service layer
+3. **All other tools** (`search_jobs`, `get_job`, `submit_job`, `get_job_status_summary`, `get_job_sandboxes`, `set_job_statuses`, `reschedule_jobs`, `get_job_metadata`): Replace `AsyncDiracClient()` HTTP calls with direct imports from DiracX's service layer
 
 The refactoring should be straightforward since the tools are thin wrappers. The complexity is in understanding DiracX's internal service API, not in the MCP layer itself.
 

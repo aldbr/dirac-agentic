@@ -28,21 +28,27 @@ export DIRACX_CREDENTIALS_PATH=/path/to/credentials.json
 
 ## Available Tools
 
-| Tool | Description |
-|------|-------------|
-| `search_jobs` | Search and filter DIRAC jobs |
-| `get_job` | Get detailed job information |
-| `submit_job` | Submit a job using JDL |
-| `create_basic_jdl` | Generate a JDL file from parameters |
-| `get_job_status_summary` | Get job status overview |
+| Tool | Description | Annotations |
+|------|-------------|-------------|
+| `search_jobs` | Search and filter DIRAC jobs | read-only |
+| `get_job` | Get detailed job information | read-only |
+| `get_job_metadata` | Get full metadata for one or more jobs | read-only |
+| `get_job_sandboxes` | Get sandbox download URLs for a job | read-only |
+| `get_job_status_summary` | Get job status overview (server-side aggregation) | read-only |
+| `create_basic_jdl` | Generate a JDL file from parameters | read-only |
+| `submit_job` | Submit a job using JDL | |
+| `set_job_statuses` | Kill or delete jobs | destructive |
+| `reschedule_jobs` | Reschedule failed or killed jobs | |
 
-## Available Prompts
+## Skills
 
-| Prompt | Description |
-|--------|-------------|
-| `job_analysis_prompt` | Guide for analyzing job failures |
-| `job_search_prompt` | Guide for constructing job searches |
-| `jdl_creation_prompt` | Guide for creating JDL files |
+Workflow guidance for agents is provided as vendor-neutral skills in `.agents/skills/`:
+
+| Skill | Description |
+|-------|-------------|
+| `submit-job` | Step-by-step job submission workflow |
+| `debug-job` | Job debugging and diagnosis guide |
+| `search-jobs` | Job search and filtering guide |
 
 ## Architecture
 
@@ -52,8 +58,6 @@ src/dirac_mcp/
 ├── server.py           # Entry point (stdio + streamable HTTP)
 ├── tools/
 │   └── jobs.py         # Tool implementations
-├── prompts/
-│   └── jobs.py         # Prompt definitions
 └── resources/
     └── jobs.py         # Resource definitions
 ```
@@ -73,9 +77,66 @@ This package is designed to work in two modes:
 - **Standalone** (current): Runs its own transport, calls DiracX over HTTP via `AsyncDiracClient()`, authenticates via env vars. Use for development, testing, and direct IDE integration.
 - **DiracX extension** (future): Mounted into DiracX via Python entrypoints, calls DiracX's service layer directly (no HTTP overhead), inherits JWT authentication.
 
-The core value of dirac-mcp is the MCP protocol adapter (tool schemas, prompts, resources), not the business logic itself — that lives in DiracX.
+The core value of dirac-mcp is the MCP protocol adapter (tool schemas, resources), not the business logic itself — that lives in DiracX.
 
 See [ADR 002](../docs/adr/002-dirac-mcp.md) for the full architecture rationale.
+
+## Integration with Claude
+
+### Claude Code
+
+Add a `.mcp.json` file at the root of your project:
+
+```json
+{
+  "mcpServers": {
+    "dirac-mcp": {
+      "command": "pixi",
+      "args": ["run", "-e", "dirac-mcp", "python", "-m", "dirac_mcp"],
+      "env": {
+        "DIRACX_URL": "https://diracx-cert.app.cern.ch",
+        "DIRACX_CREDENTIALS_PATH": "/path/to/credentials.json"
+      }
+    }
+  }
+}
+```
+
+Or via CLI:
+
+```bash
+claude mcp add dirac-mcp -- pixi run -e dirac-mcp python -m dirac_mcp
+```
+
+For a remote server running streamable HTTP:
+
+```bash
+claude mcp add --transport http dirac-mcp https://your-server:8080/mcp
+```
+
+### Claude Desktop
+
+Add to your `claude_desktop_config.json` (Claude Desktop supports stdio only):
+
+```json
+{
+  "mcpServers": {
+    "dirac-mcp": {
+      "command": "pixi",
+      "args": ["run", "-e", "dirac-mcp", "python", "-m", "dirac_mcp"],
+      "env": {
+        "DIRACX_URL": "https://diracx-cert.app.cern.ch",
+        "DIRACX_CREDENTIALS_PATH": "/path/to/credentials.json"
+      }
+    }
+  }
+}
+```
+
+The config file is located at:
+- **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- **Linux**: `~/.config/Claude/claude_desktop_config.json`
+- **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
 
 ## Docker
 
