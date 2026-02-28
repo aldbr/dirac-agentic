@@ -8,7 +8,10 @@ from diracx.client.models import (
     BodyJobsRescheduleJobs,
     JobStatusUpdate,
 )
-from diracx.core.models import ScalarSearchOperator, VectorSearchOperator  # type: ignore[no-redef]
+from diracx.core.models.search import (  # type: ignore[no-redef]
+    ScalarSearchOperator,
+    VectorSearchOperator,
+)
 from mcp.types import ToolAnnotations
 
 from dirac_mcp.app import mcp
