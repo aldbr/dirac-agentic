@@ -1,7 +1,7 @@
 """Job management tools for the DiracX MCP server."""
 
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, Literal
 
 from diracx.client.aio import AsyncDiracClient
 from diracx.client.models import (
@@ -13,15 +13,25 @@ from diracx.core.models.search import (  # type: ignore[no-redef]
     VectorSearchOperator,
 )
 from mcp.types import ToolAnnotations
+from pydantic import BaseModel
 
 from dirac_mcp.app import mcp
 
 VALID_USER_STATUSES = {"Killed", "Deleted"}
 
 
+class SearchCondition(BaseModel):
+    """A single search filter for job queries."""
+
+    parameter: str
+    operator: Literal["eq", "neq", "gt", "lt", "like", "not like", "regex", "in", "not in"]
+    value: str | None = None
+    values: list[str] | None = None
+
+
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, openWorldHint=True))
 async def search_jobs(
-    conditions: list[dict[str, str]],
+    conditions: list[SearchCondition],
     parameters: list[str] | None = None,
     page: int = 1,
     per_page: int = 10,
@@ -30,8 +40,11 @@ async def search_jobs(
     Search for jobs using the DIRACX API.
 
     Args:
-        conditions: List of search conditions, each with format:
-                   {"parameter": "Status", "operator": "eq", "value": "Failed"}
+        conditions: List of search conditions to filter jobs.
+            Use scalar operators (eq, neq, gt, lt, like, not like, regex) with 'value'.
+            Use vector operators (in, not in) with 'values'.
+            Common parameters: JobID, Status, MinorStatus, ApplicationStatus,
+            JobGroup, Site, JobName, Owner, LastUpdateTime.
         parameters: Job attributes to return (defaults to standard set if None)
         page: Page number for pagination
         per_page: Items per page
@@ -39,6 +52,12 @@ async def search_jobs(
     Returns:
         Dictionary with job search results
     """
+    # Coerce raw dicts to SearchCondition (for direct callers like eval tests)
+    conditions = [
+        c if isinstance(c, SearchCondition) else SearchCondition.model_validate(c)
+        for c in conditions
+    ]
+
     if parameters is None:
         parameters = [
             "JobID",
@@ -55,35 +74,27 @@ async def search_jobs(
     # Convert conditions to SearchSpec format
     search_specs = []
     for condition in conditions:
-        param = condition.get("parameter")
-        op = condition.get("operator")
-        value = condition.get("value")
-        values = condition.get("values")
-
-        if not param or not op:
-            continue
-
         # Handle scalar operators
-        if value is not None:
+        if condition.value is not None:
             try:
                 search_specs.append(
                     {
-                        "parameter": param,
-                        "operator": ScalarSearchOperator(op),
-                        "value": value,
+                        "parameter": condition.parameter,
+                        "operator": ScalarSearchOperator(condition.operator),
+                        "value": condition.value,
                     }
                 )
             except ValueError:
                 pass
 
         # Handle vector operators
-        elif values is not None:
+        elif condition.values is not None:
             try:
                 search_specs.append(
                     {
-                        "parameter": param,
-                        "operator": VectorSearchOperator(op),
-                        "values": values,
+                        "parameter": condition.parameter,
+                        "operator": VectorSearchOperator(condition.operator),
+                        "values": condition.values,
                     }
                 )
             except ValueError:
@@ -292,7 +303,7 @@ async def get_job_sandboxes(job_id: int) -> dict[str, Any]:
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True, openWorldHint=True))
 async def set_job_statuses(
     job_ids: list[int],
-    status: str,
+    status: Literal["Killed", "Deleted"],
     minor_status: str | None = None,
 ) -> dict[str, Any]:
     """
@@ -302,7 +313,7 @@ async def set_job_statuses(
 
     Args:
         job_ids: List of job IDs to update
-        status: Target status (must be 'Killed' or 'Deleted')
+        status: Target status
         minor_status: Optional minor status message
     """
     if status not in VALID_USER_STATUSES:

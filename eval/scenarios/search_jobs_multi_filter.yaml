@@ -1,0 +1,31 @@
+name: search_jobs_multi_filter
+skill: search-jobs
+description: Search for failed jobs at a specific site using multiple conditions.
+user_input: "Find failed jobs at CERN"
+expected_goal: "Return jobs matching Status=Failed AND Site=LCG.CERN.ch"
+
+expected_tool_calls:
+  - name: search_jobs
+    args:
+      conditions:
+        - parameter: Status
+          operator: eq
+          value: Failed
+        - parameter: Site
+          operator: eq
+          value: LCG.CERN.ch
+
+mock_responses:
+  search_jobs:
+    return_value:
+      jobs:
+        - JobID: 200
+          Status: Failed
+          MinorStatus: "Exception During Execution"
+          ApplicationStatus: "Error"
+          JobGroup: "mc_sim"
+          Site: "LCG.CERN.ch"
+          JobName: "sim_run_042"
+          Owner: "testuser"
+          LastUpdateTime: "2025-05-19T14:30:00Z"
+      content_range: "jobs 0-0/1"

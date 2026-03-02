@@ -9,6 +9,7 @@ dirac-dataset = { features = ["dirac-dataset"], solve-group = "dirac-dataset" }
 example-single-agent = { features = ["example-single-agent"], solve-group = "example-single-agent" }
 example-multi-agent = { features = ["example-multi-agent"], solve-group = "example-multi-agent" }
 example-rag = { features = ["example-rag"], solve-group = "example-rag" }
+eval = { features = ["eval"], solve-group = "eval" }
 
 
 [feature.dirac-mcp.pypi-dependencies]
@@ -53,6 +54,24 @@ cmd = "cd dirac-dataset && python -m pytest test/ -v"
 
 [feature.dirac-dataset.tasks.mypy-dataset]
 cmd = "cd dirac-dataset && mypy src/ test/"
+
+# Eval environment
+
+[feature.eval.pypi-dependencies]
+dirac-eval = { path = "eval", editable = true }
+dirac-mcp = { path = "dirac-mcp", editable = true }
+ragas = ">=0.2"
+huggingface-hub = "*"
+openai = "*"
+pytest = "*"
+pytest-asyncio = "*"
+pytest-mock = "*"
+pyyaml = "*"
+types-pyyaml = "*"
+mypy = "*"
+
+[feature.eval.tasks.test-eval]
+cmd = "cd eval && python -m pytest test/ -v"
 
 # Example environments
 

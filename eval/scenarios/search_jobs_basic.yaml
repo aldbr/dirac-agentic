@@ -1,0 +1,37 @@
+name: search_jobs_basic
+skill: search-jobs
+description: Search for all failed jobs using a simple status filter.
+user_input: "Show me all my failed jobs"
+expected_goal: "Return a list of jobs with Status=Failed"
+
+expected_tool_calls:
+  - name: search_jobs
+    args:
+      conditions:
+        - parameter: Status
+          operator: eq
+          value: Failed
+
+mock_responses:
+  search_jobs:
+    return_value:
+      jobs:
+        - JobID: 100
+          Status: Failed
+          MinorStatus: "Application Finished With Errors"
+          ApplicationStatus: "Error"
+          JobGroup: "prod"
+          Site: "LCG.CERN.ch"
+          JobName: "analysis_001"
+          Owner: "testuser"
+          LastUpdateTime: "2025-05-20T10:00:00Z"
+        - JobID: 101
+          Status: Failed
+          MinorStatus: "Input Data Not Available"
+          ApplicationStatus: ""
+          JobGroup: "prod"
+          Site: "LCG.IN2P3.fr"
+          JobName: "analysis_002"
+          Owner: "testuser"
+          LastUpdateTime: "2025-05-20T11:00:00Z"
+      content_range: "jobs 0-1/2"

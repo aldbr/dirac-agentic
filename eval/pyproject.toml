@@ -1,0 +1,22 @@
+[project]
+name = "dirac-eval"
+version = "0.1.0"
+description = "Evaluation harness for dirac-mcp tools and agent workflows"
+requires-python = ">=3.11"
+dependencies = [
+    "dirac-mcp",
+    "ragas>=0.2",
+    "huggingface-hub",
+    "openai",
+    "pyyaml>=6.0",
+    "pydantic>=2.0",
+]
+
+[project.optional-dependencies]
+langfuse = ["langfuse>=2.0,<3.0"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+markers = [
+    "agent_eval: marks tests requiring an LLM API key (skipped without HF_TOKEN)",
+]

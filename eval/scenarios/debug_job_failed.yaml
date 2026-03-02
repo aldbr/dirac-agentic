@@ -1,0 +1,42 @@
+name: debug_job_failed
+skill: debug-job
+description: Investigate a specific failed job by retrieving its details and sandboxes.
+user_input: "Job 12345 failed, investigate"
+expected_goal: "Retrieve job details and sandbox URLs for the failed job"
+
+expected_tool_calls:
+  - name: get_job
+    args:
+      job_id: 12345
+  - name: get_job_sandboxes
+    args:
+      job_id: 12345
+
+mock_responses:
+  get_job:
+    return_value:
+      jobs:
+        - JobID: 12345
+          Status: Failed
+          MinorStatus: "Application Finished With Errors"
+          ApplicationStatus: "exit code 1"
+          JobGroup: "prod_analysis"
+          Site: "LCG.CERN.ch"
+          JobName: "analysis_final"
+          Owner: "testuser"
+          LastUpdateTime: "2025-05-20T08:45:00Z"
+      content_range: "jobs 0-0/1"
+  get_job_sandboxes:
+    return_value:
+      sandboxes:
+        input:
+          - "/sb/input/12345.tar.gz"
+        output:
+          - "/sb/output/12345.tar.gz"
+      sandbox_files:
+        "/sb/input/12345.tar.gz":
+          url: "https://diracx.example.com/sb/input/12345.tar.gz?token=abc"
+          expires_in: 3600
+        "/sb/output/12345.tar.gz":
+          url: "https://diracx.example.com/sb/output/12345.tar.gz?token=def"
+          expires_in: 3600

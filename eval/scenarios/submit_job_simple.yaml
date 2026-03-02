@@ -1,0 +1,21 @@
+name: submit_job_simple
+skill: submit-job
+description: Submit a simple echo hello-world job.
+user_input: "Submit a hello world echo job"
+expected_goal: "Create a JDL for an echo job and submit it successfully"
+
+expected_tool_calls:
+  - name: create_basic_jdl
+    args:
+      executable: "/bin/echo"
+      job_name: "Hello World"
+      arguments: "hello world"
+  - name: submit_job
+    args:
+      jdl_content: "__FROM_PREVIOUS__"
+
+mock_responses:
+  submit_job:
+    return_value:
+      job_ids:
+        - 42001

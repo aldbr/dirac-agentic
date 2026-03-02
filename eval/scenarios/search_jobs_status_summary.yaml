@@ -1,0 +1,23 @@
+name: search_jobs_status_summary
+skill: search-jobs
+description: Get an overview of job statuses using server-side aggregation.
+user_input: "Give me an overview of my job statuses"
+expected_goal: "Return a summary showing counts for each job status"
+
+expected_tool_calls:
+  - name: get_job_status_summary
+    args: {}
+
+mock_responses:
+  get_job_status_summary:
+    return_value:
+      - Status: Done
+        count: 150
+      - Status: Failed
+        count: 12
+      - Status: Running
+        count: 8
+      - Status: Waiting
+        count: 25
+      - Status: Killed
+        count: 3

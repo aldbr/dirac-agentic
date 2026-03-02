@@ -1,0 +1,47 @@
+name: debug_job_stalled
+skill: debug-job
+description: Find stalled jobs and kill them.
+user_input: "Find and kill stalled jobs"
+expected_goal: "Search for stalled jobs and set their status to Killed"
+
+expected_tool_calls:
+  - name: search_jobs
+    args:
+      conditions:
+        - parameter: MinorStatus
+          operator: eq
+          value: Stalled
+  - name: set_job_statuses
+    args:
+      job_ids:
+        - 300
+        - 301
+      status: Killed
+
+mock_responses:
+  search_jobs:
+    return_value:
+      jobs:
+        - JobID: 300
+          Status: Running
+          MinorStatus: Stalled
+          ApplicationStatus: ""
+          JobGroup: "mc_prod"
+          Site: "LCG.RAL.uk"
+          JobName: "mc_gen_100"
+          Owner: "testuser"
+          LastUpdateTime: "2025-05-18T06:00:00Z"
+        - JobID: 301
+          Status: Running
+          MinorStatus: Stalled
+          ApplicationStatus: ""
+          JobGroup: "mc_prod"
+          Site: "LCG.CNAF.it"
+          JobName: "mc_gen_101"
+          Owner: "testuser"
+          LastUpdateTime: "2025-05-18T07:00:00Z"
+      content_range: "jobs 0-1/2"
+  set_job_statuses:
+    return_value:
+      "300": "Killed"
+      "301": "Killed"

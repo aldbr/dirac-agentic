@@ -1,0 +1,57 @@
+name: debug_job_reschedule
+skill: debug-job
+description: Find recently failed jobs and reschedule them.
+user_input: "Reschedule my recently failed jobs"
+expected_goal: "Search for failed jobs and reschedule them for re-execution"
+
+expected_tool_calls:
+  - name: search_jobs
+    args:
+      conditions:
+        - parameter: Status
+          operator: eq
+          value: Failed
+  - name: reschedule_jobs
+    args:
+      job_ids:
+        - 400
+        - 401
+        - 402
+
+mock_responses:
+  search_jobs:
+    return_value:
+      jobs:
+        - JobID: 400
+          Status: Failed
+          MinorStatus: "Stalled"
+          ApplicationStatus: ""
+          JobGroup: "user_analysis"
+          Site: "LCG.CERN.ch"
+          JobName: "user_job_01"
+          Owner: "testuser"
+          LastUpdateTime: "2025-05-20T12:00:00Z"
+        - JobID: 401
+          Status: Failed
+          MinorStatus: "Exception During Execution"
+          ApplicationStatus: "Segfault"
+          JobGroup: "user_analysis"
+          Site: "LCG.IN2P3.fr"
+          JobName: "user_job_02"
+          Owner: "testuser"
+          LastUpdateTime: "2025-05-20T12:30:00Z"
+        - JobID: 402
+          Status: Failed
+          MinorStatus: "Input Data Not Available"
+          ApplicationStatus: ""
+          JobGroup: "user_analysis"
+          Site: "LCG.RAL.uk"
+          JobName: "user_job_03"
+          Owner: "testuser"
+          LastUpdateTime: "2025-05-20T13:00:00Z"
+      content_range: "jobs 0-2/3"
+  reschedule_jobs:
+    return_value:
+      - 400
+      - 401
+      - 402

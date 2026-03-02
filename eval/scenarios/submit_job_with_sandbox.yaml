@@ -1,0 +1,27 @@
+name: submit_job_with_sandbox
+skill: submit-job
+description: Submit a job with input and output sandboxes.
+user_input: "Submit run.sh with input data.root, retrieve output.root"
+expected_goal: "Create a JDL with input/output sandboxes and submit it"
+
+expected_tool_calls:
+  - name: create_basic_jdl
+    args:
+      executable: "run.sh"
+      job_name: "Sandbox Job"
+      input_sandbox:
+        - "run.sh"
+        - "data.root"
+      output_sandbox:
+        - "output.root"
+        - "StdOut"
+        - "StdErr"
+  - name: submit_job
+    args:
+      jdl_content: "__FROM_PREVIOUS__"
+
+mock_responses:
+  submit_job:
+    return_value:
+      job_ids:
+        - 42002
