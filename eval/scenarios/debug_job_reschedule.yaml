@@ -7,10 +7,9 @@ expected_goal: "Search for failed jobs and reschedule them for re-execution"
 expected_tool_calls:
   - name: search_jobs
     args:
-      conditions:
-        - parameter: Status
-          operator: eq
-          value: Failed
+      parameter: Status
+      operator: eq
+      value: Failed
   - name: reschedule_jobs
     args:
       job_ids:

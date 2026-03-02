@@ -1,5 +1,6 @@
 """Job management tools for the DiracX MCP server."""
 
+import json
 from datetime import UTC, datetime
 from typing import Any, Literal
 
@@ -21,7 +22,7 @@ VALID_USER_STATUSES = {"Killed", "Deleted"}
 
 
 class SearchCondition(BaseModel):
-    """A single search filter for job queries."""
+    """A single search filter for job queries (internal helper)."""
 
     parameter: str
     operator: Literal["eq", "neq", "gt", "lt", "like", "not like", "regex", "in", "not in"]
@@ -29,37 +30,66 @@ class SearchCondition(BaseModel):
     values: list[str] | None = None
 
 
+def _condition_to_search_spec(condition: SearchCondition) -> dict[str, Any] | None:
+    """Convert a SearchCondition to a DiracX search spec dict."""
+    if condition.value is not None:
+        try:
+            return {
+                "parameter": condition.parameter,
+                "operator": ScalarSearchOperator(condition.operator),
+                "value": condition.value,
+            }
+        except ValueError:
+            return None
+    elif condition.values is not None:
+        try:
+            return {
+                "parameter": condition.parameter,
+                "operator": VectorSearchOperator(condition.operator),
+                "values": condition.values,
+            }
+        except ValueError:
+            return None
+    return None
+
+
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, openWorldHint=True))
 async def search_jobs(
-    conditions: list[SearchCondition],
-    parameters: list[str] | None = None,
+    parameter: str,
+    operator: Literal["eq", "neq", "gt", "lt", "like", "not like", "regex", "in", "not in"],
+    value: str | None = None,
+    values: list[str] | None = None,
+    extra_conditions: str | None = None,
+    result_fields: list[str] | None = None,
     page: int = 1,
     per_page: int = 10,
 ) -> dict[str, Any]:
-    """
-    Search for jobs using the DIRACX API.
+    """Search for jobs using the DIRACX API.
+
+    Provide a primary condition with parameter + operator + value/values.
+    For additional filters, pass extra_conditions as a JSON array string.
+
+    Examples:
+      - Find failed jobs: parameter="Status", operator="eq", value="Failed"
+      - Find jobs at CERN: parameter="Site", operator="eq", value="LCG.CERN.ch"
+      - Find jobs by IDs: parameter="JobID", operator="in", values=["100", "101"]
+      - Multi-filter: parameter="Status", operator="eq", value="Failed",
+          extra_conditions='[{"parameter": "Site", "operator": "eq", "value": "LCG.CERN.ch"}]'
 
     Args:
-        conditions: List of search conditions to filter jobs.
-            Use scalar operators (eq, neq, gt, lt, like, not like, regex) with 'value'.
-            Use vector operators (in, not in) with 'values'.
-            Common parameters: JobID, Status, MinorStatus, ApplicationStatus,
-            JobGroup, Site, JobName, Owner, LastUpdateTime.
-        parameters: Job attributes to return (defaults to standard set if None)
-        page: Page number for pagination
-        per_page: Items per page
-
-    Returns:
-        Dictionary with job search results
+        parameter: Job attribute to filter on (e.g. Status, JobID, Site, Owner, MinorStatus).
+        operator: Comparison operator. Use eq/neq/gt/lt/like/regex with 'value'.
+            Use 'in'/'not in' with 'values'.
+        value: Single value for scalar operators (eq, neq, gt, lt, like, not like, regex).
+        values: List of values for vector operators (in, not in).
+        extra_conditions: Optional JSON array string with additional conditions.
+            Example: '[{"parameter": "Site", "operator": "eq", "value": "LCG.CERN.ch"}]'
+        result_fields: Job attributes to return (defaults to standard set if None).
+        page: Page number for pagination.
+        per_page: Items per page.
     """
-    # Coerce raw dicts to SearchCondition (for direct callers like eval tests)
-    conditions = [
-        c if isinstance(c, SearchCondition) else SearchCondition.model_validate(c)
-        for c in conditions
-    ]
-
-    if parameters is None:
-        parameters = [
+    if result_fields is None:
+        result_fields = [
             "JobID",
             "Status",
             "MinorStatus",
@@ -71,40 +101,31 @@ async def search_jobs(
             "LastUpdateTime",
         ]
 
+    # Build primary condition
+    primary = SearchCondition(parameter=parameter, operator=operator, value=value, values=values)
+    conditions = [primary]
+
+    # Parse extra_conditions if provided
+    if extra_conditions is not None:
+        try:
+            extra = json.loads(extra_conditions)
+            for entry in extra:
+                conditions.append(SearchCondition.model_validate(entry))
+        except (json.JSONDecodeError, Exception) as e:
+            return {"success": False, "error": f"Invalid extra_conditions JSON: {e}"}
+
     # Convert conditions to SearchSpec format
     search_specs = []
     for condition in conditions:
-        # Handle scalar operators
-        if condition.value is not None:
-            try:
-                search_specs.append(
-                    {
-                        "parameter": condition.parameter,
-                        "operator": ScalarSearchOperator(condition.operator),
-                        "value": condition.value,
-                    }
-                )
-            except ValueError:
-                pass
-
-        # Handle vector operators
-        elif condition.values is not None:
-            try:
-                search_specs.append(
-                    {
-                        "parameter": condition.parameter,
-                        "operator": VectorSearchOperator(condition.operator),
-                        "values": condition.values,
-                    }
-                )
-            except ValueError:
-                pass
+        spec = _condition_to_search_spec(condition)
+        if spec is not None:
+            search_specs.append(spec)
 
     # Execute the search
     try:
         async with AsyncDiracClient() as client:
             jobs, content_range = await client.jobs.search(
-                parameters=parameters,
+                parameters=result_fields,
                 search=search_specs,  # type: ignore[arg-type]
                 page=page,
                 per_page=per_page,
@@ -123,11 +144,12 @@ async def search_jobs(
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, openWorldHint=True))
 async def get_job(job_id: int) -> dict[str, Any]:
-    """
-    Get detailed information about a specific job.
+    """Get detailed information about a specific job.
+
+    Example: get_job(job_id=12345)
 
     Args:
-        job_id: The ID of the job to retrieve details for
+        job_id: The numeric ID of the job to retrieve details for.
     """
     try:
         async with AsyncDiracClient() as client:
@@ -156,11 +178,14 @@ async def get_job(job_id: int) -> dict[str, Any]:
     )
 )
 async def submit_job(jdl_content: str) -> dict[str, Any]:
-    """
-    Submit a new job using the provided JDL description.
+    """Submit a new job using the provided JDL description.
+
+    Use create_basic_jdl first to generate a valid JDL string, then pass it here.
+
+    Example: submit_job(jdl_content=create_basic_jdl(executable="/bin/echo", arguments="hello"))
 
     Args:
-        jdl_content: The full JDL content defining the job
+        jdl_content: The full JDL content defining the job.
     """
     try:
         async with AsyncDiracClient() as client:
@@ -185,21 +210,22 @@ def create_basic_jdl(
     memory: int | None = None,
     max_cpu_time: int | None = None,
 ) -> str:
-    """
-    Create a basic JDL file with the given parameters.
+    """Create a basic JDL file with the given parameters.
+
+    Example: create_basic_jdl(executable="/bin/echo", arguments="hello world", job_name="TestJob")
 
     Args:
-        executable: The executable to run
-        job_name: Name of the job
-        arguments: Command-line arguments for the executable
-        input_sandbox: List of files to include in the job
-        output_sandbox: List of files to retrieve after job completion
-        site: Specific site to run the job on
-        memory: Memory requirement in MB
-        max_cpu_time: Maximum CPU time in seconds
+        executable: The executable to run.
+        job_name: Name of the job.
+        arguments: Command-line arguments for the executable.
+        input_sandbox: List of files to include in the job.
+        output_sandbox: List of files to retrieve after job completion.
+        site: Specific site to run the job on.
+        memory: Memory requirement in MB.
+        max_cpu_time: Maximum CPU time in seconds.
 
     Returns:
-        A complete JDL string ready to submit
+        A complete JDL string ready to pass to submit_job.
     """
     if output_sandbox is None:
         output_sandbox = ["StdOut", "StdErr"]
@@ -267,14 +293,15 @@ async def get_job_status_summary() -> dict[str, Any]:
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, openWorldHint=True))
 async def get_job_sandboxes(job_id: int) -> dict[str, Any]:
-    """
-    Get sandbox download URLs for a job.
+    """Get sandbox download URLs for a job.
 
     Retrieves input and output sandbox file references for the given job,
     then resolves each to a presigned download URL.
 
+    Example: get_job_sandboxes(job_id=12345)
+
     Args:
-        job_id: The ID of the job to get sandboxes for
+        job_id: The numeric ID of the job to get sandboxes for.
     """
     try:
         async with AsyncDiracClient() as client:
@@ -306,15 +333,16 @@ async def set_job_statuses(
     status: Literal["Killed", "Deleted"],
     minor_status: str | None = None,
 ) -> dict[str, Any]:
-    """
-    Set the status of one or more jobs (e.g. kill or delete).
+    """Set the status of one or more jobs (e.g. kill or delete).
 
     Only user-settable statuses are allowed: Killed, Deleted.
 
+    Example: set_job_statuses(job_ids=[123, 456], status="Killed")
+
     Args:
-        job_ids: List of job IDs to update
-        status: Target status
-        minor_status: Optional minor status message
+        job_ids: List of job IDs to update.
+        status: Target status (Killed or Deleted).
+        minor_status: Optional minor status message.
     """
     if status not in VALID_USER_STATUSES:
         return {
@@ -351,12 +379,13 @@ async def reschedule_jobs(
     job_ids: list[int],
     reset_counter: bool = False,
 ) -> dict[str, Any]:
-    """
-    Reschedule failed or killed jobs for re-execution.
+    """Reschedule failed or killed jobs for re-execution.
+
+    Example: reschedule_jobs(job_ids=[123, 456])
 
     Args:
-        job_ids: List of job IDs to reschedule
-        reset_counter: If True, reset the reschedule counter for these jobs
+        job_ids: List of job IDs to reschedule.
+        reset_counter: If True, reset the reschedule counter for these jobs.
     """
     try:
         async with AsyncDiracClient() as client:
@@ -371,13 +400,14 @@ async def reschedule_jobs(
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, openWorldHint=True))
 async def get_job_metadata(job_ids: list[int]) -> dict[str, Any]:
-    """
-    Get full metadata for one or more jobs.
+    """Get full metadata for one or more jobs.
 
     Retrieves all available parameters for the specified jobs.
 
+    Example: get_job_metadata(job_ids=[123, 456])
+
     Args:
-        job_ids: List of job IDs to get metadata for
+        job_ids: List of job IDs to get metadata for.
     """
     try:
         async with AsyncDiracClient() as client:

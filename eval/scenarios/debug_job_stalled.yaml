@@ -7,10 +7,9 @@ expected_goal: "Search for stalled jobs and set their status to Killed"
 expected_tool_calls:
   - name: search_jobs
     args:
-      conditions:
-        - parameter: MinorStatus
-          operator: eq
-          value: Stalled
+      parameter: MinorStatus
+      operator: eq
+      value: Stalled
   - name: set_job_statuses
     args:
       job_ids:

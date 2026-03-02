@@ -7,10 +7,9 @@ expected_goal: "Return a list of jobs with Status=Failed"
 expected_tool_calls:
   - name: search_jobs
     args:
-      conditions:
-        - parameter: Status
-          operator: eq
-          value: Failed
+      parameter: Status
+      operator: eq
+      value: Failed
 
 mock_responses:
   search_jobs:

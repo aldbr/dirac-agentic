@@ -7,13 +7,10 @@ expected_goal: "Return jobs matching Status=Failed AND Site=LCG.CERN.ch"
 expected_tool_calls:
   - name: search_jobs
     args:
-      conditions:
-        - parameter: Status
-          operator: eq
-          value: Failed
-        - parameter: Site
-          operator: eq
-          value: LCG.CERN.ch
+      parameter: Status
+      operator: eq
+      value: Failed
+      extra_conditions: '[{"parameter": "Site", "operator": "eq", "value": "LCG.CERN.ch"}]'
 
 mock_responses:
   search_jobs:
