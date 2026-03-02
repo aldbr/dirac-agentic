@@ -77,8 +77,9 @@ async def test_tool_execution(scenario_file: str) -> None:
                 previous_result = result
             else:
                 assert isinstance(result, dict), f"Expected dict, got {type(result)}"
-                assert result["success"] is True, (
-                    f"Tool {tool_call.name} failed: {result.get('error')}"
+                assert result["success"] is tool_call.expected_success, (
+                    f"Tool {tool_call.name}: expected success={tool_call.expected_success}, "
+                    f"got success={result.get('success')}, error={result.get('error')}"
                 )
                 previous_result = result
 
@@ -109,10 +110,16 @@ async def test_tool_response_structure(scenario_file: str) -> None:
 
             assert isinstance(result, dict)
 
-            # Verify expected keys per tool
+            # Error responses only have success + error keys
+            if not result.get("success"):
+                assert "error" in result
+                continue
+
+            # Verify expected keys per tool on success
             if tool_call.name == "search_jobs":
                 assert "data" in result
                 assert "content_range" in result
+                assert "pagination" in result
             elif tool_call.name == "get_job":
                 assert "data" in result
             elif tool_call.name == "submit_job":

@@ -15,6 +15,7 @@ eval = { features = ["eval"], solve-group = "eval" }
 [feature.dirac-mcp.pypi-dependencies]
 dirac-mcp = { path = "dirac-mcp", editable = true }
 pytest = "*"
+pytest-asyncio = "*"
 pytest-mock = "*"
 mypy = "*"
 
@@ -61,7 +62,6 @@ cmd = "cd dirac-dataset && mypy src/ test/"
 dirac-eval = { path = "eval", editable = true }
 dirac-mcp = { path = "dirac-mcp", editable = true }
 ragas = ">=0.2"
-huggingface-hub = "*"
 openai = "*"
 pytest = "*"
 pytest-asyncio = "*"
@@ -87,7 +87,7 @@ langgraph = "*"
 langgraph-prebuilt = "*"
 langgraph-supervisor = "*"
 langchain-mcp-adapters = "*"
-langchain-huggingface = "*"
+langchain-openai = "*"
 
 [feature.example-multi-agent.tasks.debug-production]
 cmd = "python examples/multi-agent/debug_production.py"
@@ -95,7 +95,7 @@ cmd = "python examples/multi-agent/debug_production.py"
 [feature.example-rag.pypi-dependencies]
 datasets = "*"
 llama-index-embeddings-huggingface = "*"
-huggingface-hub = "*"
+openai = "*"
 pymilvus = "*"
 rich = "*"
 

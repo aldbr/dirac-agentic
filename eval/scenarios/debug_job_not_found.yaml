@@ -1,0 +1,17 @@
+name: debug_job_not_found
+skill: debug-job
+description: Verify that get_job returns a clear error when the job does not exist.
+user_input: "Investigate job 99999"
+expected_goal: "Return a not-found error for a non-existent job"
+
+expected_tool_calls:
+  - name: get_job
+    args:
+      job_id: 99999
+    expected_success: false
+
+mock_responses:
+  get_job:
+    return_value:
+      jobs: []
+      content_range: "jobs 0-0/0"

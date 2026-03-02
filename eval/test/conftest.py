@@ -31,3 +31,9 @@ def all_scenarios() -> list[Scenario]:
 def hf_token() -> str | None:
     """Return the HuggingFace token or None if not set."""
     return os.environ.get("HF_TOKEN")
+
+
+@pytest.fixture
+def llm_api_key() -> str | None:
+    """Return the LLM API key, falling back to HF_TOKEN."""
+    return os.environ.get("LLM_API_KEY", os.environ.get("HF_TOKEN"))

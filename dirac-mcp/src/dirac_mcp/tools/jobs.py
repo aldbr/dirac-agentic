@@ -1,6 +1,7 @@
 """Job management tools for the DiracX MCP server."""
 
 import json
+import re
 from datetime import UTC, datetime
 from typing import Any, Literal
 
@@ -14,11 +15,14 @@ from diracx.core.models.search import (  # type: ignore[no-redef]
     VectorSearchOperator,
 )
 from mcp.types import ToolAnnotations
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError, model_validator
 
 from dirac_mcp.app import mcp
 
 VALID_USER_STATUSES = {"Killed", "Deleted"}
+
+SCALAR_OPERATORS = {"eq", "neq", "gt", "lt", "like", "not like", "regex"}
+VECTOR_OPERATORS = {"in", "not in"}
 
 
 class SearchCondition(BaseModel):
@@ -28,6 +32,33 @@ class SearchCondition(BaseModel):
     operator: Literal["eq", "neq", "gt", "lt", "like", "not like", "regex", "in", "not in"]
     value: str | None = None
     values: list[str] | None = None
+
+    @model_validator(mode="after")
+    def check_value_matches_operator(self) -> "SearchCondition":
+        if self.operator in SCALAR_OPERATORS:
+            if self.value is None:
+                raise ValueError(
+                    f"Scalar operator '{self.operator}' requires 'value', not 'values'"
+                )
+            if self.values is not None:
+                raise ValueError(f"Scalar operator '{self.operator}' does not accept 'values'")
+        elif self.operator in VECTOR_OPERATORS:
+            if self.values is None:
+                raise ValueError(
+                    f"Vector operator '{self.operator}' requires 'values', not 'value'"
+                )
+            if self.value is not None:
+                raise ValueError(f"Vector operator '{self.operator}' does not accept 'value'")
+        return self
+
+
+def _parse_content_range(header: str) -> dict[str, Any]:
+    """Parse a Content-Range header like 'jobs 0-9/42' into structured pagination info."""
+    match = re.match(r"\w+\s+(\d+)-(\d+)/(\d+)", header)
+    if not match:
+        return {"raw": header}
+    start, end, total = int(match.group(1)), int(match.group(2)), int(match.group(3))
+    return {"start": start, "end": end, "total": total, "has_more": end < total - 1}
 
 
 def _condition_to_search_spec(condition: SearchCondition) -> dict[str, Any] | None:
@@ -102,7 +133,12 @@ async def search_jobs(
         ]
 
     # Build primary condition
-    primary = SearchCondition(parameter=parameter, operator=operator, value=value, values=values)
+    try:
+        primary = SearchCondition(
+            parameter=parameter, operator=operator, value=value, values=values
+        )
+    except ValidationError as e:
+        return {"success": False, "error": f"Invalid primary condition: {e}"}
     conditions = [primary]
 
     # Parse extra_conditions if provided
@@ -111,8 +147,8 @@ async def search_jobs(
             extra = json.loads(extra_conditions)
             for entry in extra:
                 conditions.append(SearchCondition.model_validate(entry))
-        except (json.JSONDecodeError, Exception) as e:
-            return {"success": False, "error": f"Invalid extra_conditions JSON: {e}"}
+        except (json.JSONDecodeError, ValidationError) as e:
+            return {"success": False, "error": f"Invalid extra_conditions: {e}"}
 
     # Convert conditions to SearchSpec format
     search_specs = []
@@ -136,6 +172,7 @@ async def search_jobs(
                 "success": True,
                 "data": jobs,
                 "content_range": content_range,
+                "pagination": _parse_content_range(content_range),
                 "search_specs": search_specs,
             }
     except Exception as e:

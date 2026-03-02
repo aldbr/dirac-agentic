@@ -1,0 +1,28 @@
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: lhcb-dirac-dpa-mlops-llm-agent-14b
+  labels:
+    nvidia-drivers: "true"
+  annotations:
+    sidecar.istio.io/inject: "false"
+spec:
+  predictor:
+    model:
+      modelFormat:
+        name: huggingface
+      args:
+        - --model_name=agent
+        - --model_id=Qwen/Qwen2.5-14B-Instruct
+        - --max_model_len=16384
+        - --enable-auto-tool-choice
+        - --tool-call-parser=hermes
+      resources:
+        limits:
+          cpu: "4"
+          memory: 48Gi
+          nvidia.com/gpu: "1"
+        requests:
+          cpu: "2"
+          memory: 32Gi
+          nvidia.com/gpu: "1"

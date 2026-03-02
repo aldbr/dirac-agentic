@@ -12,8 +12,12 @@ dependencies = [
 [project.optional-dependencies]
 test = [
   "pytest",
+  "pytest-asyncio",
   "pytest-mock",
 ]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
 
 [project.scripts]
 dirac-mcp = "dirac_mcp.server:main"

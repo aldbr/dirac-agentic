@@ -1,0 +1,18 @@
+name: search_jobs_api_error
+skill: search-jobs
+description: Verify that search_jobs handles API errors gracefully.
+user_input: "Show me all failed jobs"
+expected_goal: "Return an error response when the DiracX API is unavailable"
+
+expected_tool_calls:
+  - name: search_jobs
+    args:
+      parameter: Status
+      operator: eq
+      value: Failed
+    expected_success: false
+
+mock_responses:
+  search_jobs:
+    return_value: {}
+    side_effect: "DiracX API unavailable: connection refused"

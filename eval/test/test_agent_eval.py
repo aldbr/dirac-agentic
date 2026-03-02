@@ -5,14 +5,17 @@ dirac-mcp tools (formatted as function-calling schemas), picks and calls
 tools against the mocked DiracX client, and the resulting trace is scored
 with RAGAS ``ToolCallAccuracy`` and ``AgentGoalAccuracy``.
 
-Requires ``HF_TOKEN`` env var. Skipped automatically if not set.
+Requires an API key: set ``LLM_API_KEY`` (or ``HF_TOKEN`` for HuggingFace).
+Skipped automatically if neither is set.
 
 Optionally sends traces and scores to Langfuse when ``LANGFUSE_SECRET_KEY``
 is set. See ``dirac_eval.langfuse_utils`` for details.
 
 Environment variables
 ---------------------
-HF_TOKEN              HuggingFace API token (required).
+LLM_BASE_URL          OpenAI-compatible API base URL
+                      (default: https://router.huggingface.co/v1).
+LLM_API_KEY           API key for the LLM provider (default: $HF_TOKEN).
 EVAL_AGENT_MODEL      Model for the agent loop (needs tool calling).
                       Default: ``Qwen/Qwen3-14B``.
 EVAL_JUDGE_MODEL      Model for the RAGAS judge (needs structured output).
@@ -50,10 +53,55 @@ SCENARIOS_DIR = Path(__file__).resolve().parent.parent / "scenarios"
 # of 70B+ models. Available on HF Inference Providers (nscale).
 DEFAULT_AGENT_MODEL = "Qwen/Qwen3-14B"
 
-# Skip the entire module if no HF token is available
+DEFAULT_BASE_URL = "https://router.huggingface.co/v1"
+
+
+def _get_api_key() -> str | None:
+    """Return the LLM API key, falling back to HF_TOKEN."""
+    return os.environ.get("LLM_API_KEY", os.environ.get("HF_TOKEN"))
+
+
+def _make_openai_client(
+    base_url: str,
+    api_key: str,
+    *,
+    async_client: bool = False,
+):
+    """Build an OpenAI client, injecting a session cookie when needed.
+
+    CERN ML service uses ``authservice_session`` cookies for auth.
+    Set ``LLM_AUTH_COOKIE`` to the cookie value, or leave unset for
+    providers that accept a standard ``Authorization: Bearer`` header.
+    """
+    import httpx
+
+    kwargs: dict[str, Any] = {"base_url": base_url, "api_key": api_key}
+
+    cookie = os.environ.get("LLM_AUTH_COOKIE")
+    if cookie:
+        headers = {"Cookie": f"authservice_session={cookie}"}
+        if async_client:
+            kwargs["http_client"] = httpx.AsyncClient(headers=headers)
+        else:
+            kwargs["http_client"] = httpx.Client(headers=headers)
+
+    if async_client:
+        from openai import AsyncOpenAI
+
+        return AsyncOpenAI(**kwargs)
+
+    from openai import OpenAI
+
+    return OpenAI(**kwargs)
+
+
+# Skip the entire module if no API key is available
 pytestmark = [
     pytest.mark.agent_eval,
-    pytest.mark.skipif(not os.environ.get("HF_TOKEN"), reason="HF_TOKEN not set"),
+    pytest.mark.skipif(
+        not _get_api_key(),
+        reason="LLM_API_KEY or HF_TOKEN not set",
+    ),
 ]
 
 # --- Tool schema generation from the FastMCP server ---
@@ -124,22 +172,25 @@ async def _run_agent_loop(
     user_input: str,
     *,
     model: str,
-    hf_token: str,
+    api_key: str,
+    base_url: str = DEFAULT_BASE_URL,
     max_turns: int = 10,
     trace: Any = None,
 ) -> tuple[list[Any], list[dict[str, Any]]]:
-    """Run a function-calling agent loop using HuggingFace Inference API.
+    """Run a function-calling agent loop using an OpenAI-compatible API.
 
     Args:
+        model: Model name to use for completions.
+        api_key: API key for the inference provider.
+        base_url: OpenAI-compatible API base URL.
         trace: Optional Langfuse trace object for logging generations and spans.
 
     Returns:
         Tuple of (RAGAS message trace, list of actual tool calls).
     """
-    from huggingface_hub import InferenceClient
     from ragas.messages import AIMessage, HumanMessage, ToolCall, ToolMessage
 
-    client = InferenceClient(model=model, token=hf_token)
+    client = _make_openai_client(base_url, api_key)
 
     messages: list[dict[str, Any]] = [
         {
@@ -159,6 +210,7 @@ async def _run_agent_loop(
 
     for turn in range(max_turns):
         response = client.chat.completions.create(
+            model=model,
             messages=messages,
             tools=await _get_tool_schemas(),
             tool_choice="auto",
@@ -264,8 +316,14 @@ def _scenario_files() -> list[str]:
     return [p.name for p in sorted(SCENARIOS_DIR.glob("*.yaml"))]
 
 
-def _make_judge_llm(model: str, hf_token: str, *, async_client: bool = False):
-    """Create a RAGAS-compatible judge LLM via HuggingFace's OpenAI-compatible API.
+def _make_judge_llm(
+    model: str,
+    api_key: str,
+    base_url: str = DEFAULT_BASE_URL,
+    *,
+    async_client: bool = False,
+):
+    """Create a RAGAS-compatible judge LLM via an OpenAI-compatible API.
 
     Args:
         async_client: If True, use AsyncOpenAI (required for collections metrics
@@ -273,20 +331,7 @@ def _make_judge_llm(model: str, hf_token: str, *, async_client: bool = False):
     """
     from ragas.llms import llm_factory
 
-    if async_client:
-        from openai import AsyncOpenAI
-
-        client = AsyncOpenAI(
-            base_url="https://router.huggingface.co/v1",
-            api_key=hf_token,
-        )
-    else:
-        from openai import OpenAI
-
-        client = OpenAI(
-            base_url="https://router.huggingface.co/v1",
-            api_key=hf_token,
-        )
+    client = _make_openai_client(base_url, api_key, async_client=async_client)
     return llm_factory(model, client=client)
 
 
@@ -300,7 +345,9 @@ async def test_agent_tool_call_accuracy(scenario_file: str) -> None:
     from ragas import evaluate
     from ragas.metrics._tool_call_accuracy import ToolCallAccuracy
 
-    hf_token = os.environ["HF_TOKEN"]
+    api_key = _get_api_key()
+    assert api_key, "LLM_API_KEY or HF_TOKEN must be set"
+    base_url = os.environ.get("LLM_BASE_URL", DEFAULT_BASE_URL)
     agent_model = os.environ.get("EVAL_AGENT_MODEL", DEFAULT_AGENT_MODEL)
     judge_model = os.environ.get("EVAL_JUDGE_MODEL", agent_model)
 
@@ -320,12 +367,13 @@ async def test_agent_tool_call_accuracy(scenario_file: str) -> None:
             ragas_trace, _ = await _run_agent_loop(
                 scenario.user_input,
                 model=agent_model,
-                hf_token=hf_token,
+                api_key=api_key,
+                base_url=base_url,
                 trace=trace,
             )
 
         dataset = _build_ragas_dataset(scenario, ragas_trace)
-        judge_llm = _make_judge_llm(judge_model, hf_token)
+        judge_llm = _make_judge_llm(judge_model, api_key, base_url)
 
         result = evaluate(
             dataset=dataset,
@@ -363,7 +411,9 @@ async def test_agent_goal_accuracy(scenario_file: str) -> None:
         AgentGoalAccuracyWithReference,
     )
 
-    hf_token = os.environ["HF_TOKEN"]
+    api_key = _get_api_key()
+    assert api_key, "LLM_API_KEY or HF_TOKEN must be set"
+    base_url = os.environ.get("LLM_BASE_URL", DEFAULT_BASE_URL)
     agent_model = os.environ.get("EVAL_AGENT_MODEL", DEFAULT_AGENT_MODEL)
     judge_model = os.environ.get("EVAL_JUDGE_MODEL", agent_model)
 
@@ -383,11 +433,12 @@ async def test_agent_goal_accuracy(scenario_file: str) -> None:
             ragas_trace, _ = await _run_agent_loop(
                 scenario.user_input,
                 model=agent_model,
-                hf_token=hf_token,
+                api_key=api_key,
+                base_url=base_url,
                 trace=trace,
             )
 
-        judge_llm = _make_judge_llm(judge_model, hf_token, async_client=True)
+        judge_llm = _make_judge_llm(judge_model, api_key, base_url, async_client=True)
         metric = AgentGoalAccuracyWithReference(llm=judge_llm)
 
         result = await metric.ascore(ragas_trace, reference=scenario.expected_goal)

@@ -16,6 +16,7 @@ Usage:
     fastmcp dev dirac-mcp/src/dirac_mcp/server.py
 """
 
+import logging
 import os
 
 import dirac_mcp.resources.jobs  # noqa: F401
@@ -27,9 +28,26 @@ import dirac_mcp.tools.jobs  # noqa: F401
 # Import the shared FastMCP instance
 from dirac_mcp.app import mcp  # noqa: F401
 
+logger = logging.getLogger(__name__)
+
+
+def _check_credentials() -> None:
+    """Log warnings if DiracX credential env vars are missing."""
+    if not os.environ.get("DIRACX_URL"):
+        logger.warning(
+            "DIRACX_URL is not set — tools requiring DiracX access will fail. "
+            "Set it to your DiracX instance URL."
+        )
+    if not os.environ.get("DIRACX_CREDENTIALS_PATH"):
+        logger.warning(
+            "DIRACX_CREDENTIALS_PATH is not set — tools requiring DiracX access will fail. "
+            "Set it to the path of your credentials file."
+        )
+
 
 def main() -> None:
     """Run the MCP server with configurable transport."""
+    _check_credentials()
     transport = os.environ.get("MCP_TRANSPORT", "stdio")
 
     if transport == "streamable-http":

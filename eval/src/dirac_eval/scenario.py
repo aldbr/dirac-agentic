@@ -12,6 +12,7 @@ class ToolCallSpec(BaseModel):
 
     name: str
     args: dict[str, Any]
+    expected_success: bool = True
 
 
 class MockResponseSpec(BaseModel):

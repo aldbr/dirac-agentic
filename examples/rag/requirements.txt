@@ -1,5 +1,5 @@
 datasets
 llama-index-embeddings-huggingface
-huggingface_hub
+openai
 pymilvus
 rich
