@@ -6,7 +6,7 @@ tags: [dirac, job, search, monitoring]
 tools:
   - search_jobs
   - get_job_status_summary
-  - get_job_metadata
+  - get_job
 ---
 
 # Search DIRAC Jobs
@@ -19,7 +19,7 @@ tools:
 4. **Summarize results** in a clear, tabular format.
 
 For a high-level overview, use `get_job_status_summary` first.
-For full details on specific jobs, use `get_job_metadata` with the job IDs.
+For full details on a specific job, use `get_job` with the job ID.
 
 ## Operator Reference
 

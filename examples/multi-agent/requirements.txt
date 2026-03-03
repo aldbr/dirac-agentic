@@ -1,3 +1,4 @@
+langchain
 langgraph
 langgraph-prebuilt
 langgraph-supervisor

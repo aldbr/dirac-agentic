@@ -10,6 +10,7 @@ COPY ./pyproject.toml /app/
 # Copy full source and pixi manifest
 COPY ./dirac-mcp /app/dirac-mcp
 COPY ./dirac-dataset /app/dirac-dataset
+COPY ./eval /app/eval
 
 # Install only dirac-mcp dependencies into a pixi-managed env
 RUN pixi install -e dirac-mcp

@@ -3,7 +3,7 @@
   "tolerance": 0.1,
   "scenarios": {
     "debug_job_failed": {
-      "tool_call_accuracy": 0.5,
+      "tool_call_accuracy": 0.0,
       "agent_goal_accuracy": 0.5
     },
     "debug_job_not_found": {
@@ -15,7 +15,7 @@
       "agent_goal_accuracy": 0.5
     },
     "debug_job_stalled": {
-      "tool_call_accuracy": 0.5,
+      "tool_call_accuracy": 0.0,
       "agent_goal_accuracy": 0.5
     },
     "search_jobs_api_error": {

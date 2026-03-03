@@ -36,6 +36,10 @@ python debug_production.py
 
 ## Configuration
 
+### Common defaults
+
+These apply to all agents unless overridden with per-agent variables (see below):
+
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `LLM_BASE_URL` | `https://router.huggingface.co/v1` | OpenAI-compatible API base URL |
@@ -47,15 +51,46 @@ python debug_production.py
 
 Other good model choices: `Qwen/Qwen2.5-32B-Instruct`, `meta-llama/Llama-3.1-70B-Instruct`.
 
+### Per-agent model overrides
+
+Each agent (supervisor, DiracX, LbAPI) can use a different model and endpoint. Set `{PREFIX}_BASE_URL`, `{PREFIX}_API_KEY`, `{PREFIX}_MODEL`, or `{PREFIX}_AUTH_COOKIE` to override the common `LLM_*` defaults:
+
+| Prefix | Agent |
+|--------|-------|
+| `SUPERVISOR_` | Supervisor (routing) |
+| `DIRACX_AGENT_` | DiracX job specialist |
+| `LBAPI_AGENT_` | LbAPI production specialist |
+
+Example — large model for the supervisor, smaller model for the sub-agents:
+
+```bash
+# Common defaults (used by DiracX and LbAPI agents)
+export LLM_BASE_URL=https://router.huggingface.co/v1
+export LLM_API_KEY=$HF_TOKEN
+export LLM_MODEL=mistralai/Mistral-Small-3.1-24B-Instruct-2503
+
+# Supervisor: use a larger model from a different endpoint
+export SUPERVISOR_BASE_URL=https://api.openai.com/v1
+export SUPERVISOR_API_KEY=sk-...
+export SUPERVISOR_MODEL=gpt-4o
+```
+
 ## CERN ML Deployment
 
 To run against models deployed on the CERN ML platform (see [`deploy/cern-ml/`](../../deploy/cern-ml/README.md)):
 
 ```bash
-export LLM_BASE_URL=https://ml.cern.ch/serving/<namespace>/<service>/openai/v1
-export LLM_MODEL=orchestrator
+# Common CERN ML settings (shared cookie, API key unused)
 export LLM_API_KEY=unused
 export LLM_AUTH_COOKIE=<your-authservice-session-cookie>
+
+# Supervisor: large model for routing
+export SUPERVISOR_BASE_URL=https://ml.cern.ch/serving/<namespace>/<large-service>/openai/v1
+export SUPERVISOR_MODEL=qwen-72b
+
+# Sub-agents: smaller model for tool-calling
+export LLM_BASE_URL=https://ml.cern.ch/serving/<namespace>/<small-service>/openai/v1
+export LLM_MODEL=qwen-14b
 
 # DiracX MCP (requires DIRACX_URL and DIRACX_CREDENTIALS_PATH)
 export DIRACX_MCP_COMMAND="pixi run -e dirac-mcp dirac-mcp"

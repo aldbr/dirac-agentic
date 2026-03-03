@@ -1,14 +1,13 @@
 ---
 name: debug-job
 description: Debug and diagnose issues with DIRAC jobs
-version: "1.1"
+version: "1.2"
 tags: [dirac, job, debugging, troubleshooting]
 tools:
   - get_job
   - search_jobs
   - get_job_status_summary
   - get_job_sandboxes
-  - get_job_metadata
   - set_job_statuses
   - reschedule_jobs
 ---

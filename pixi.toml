@@ -83,6 +83,7 @@ mcp = "*"
 cmd = "python examples/single-agent/diracx_agent.py"
 
 [feature.example-multi-agent.pypi-dependencies]
+langchain = "*"
 langgraph = "*"
 langgraph-prebuilt = "*"
 langgraph-supervisor = "*"

@@ -10,7 +10,6 @@ from dirac_mcp.tools.jobs import (
     _parse_content_range,
     create_basic_jdl,
     get_job,
-    get_job_metadata,
     get_job_sandboxes,
     get_job_status_summary,
     reschedule_jobs,
@@ -314,7 +313,7 @@ class TestGetJob:
 
 @pytest.mark.asyncio
 class TestSubmitJob:
-    async def test_success(self):
+    async def test_success_with_jdl(self):
         jobs_ns = MagicMock()
         mock_job = MagicMock()
         mock_job.job_id = 42
@@ -331,6 +330,30 @@ class TestSubmitJob:
 
         assert result["success"] is True
         assert 42 in result["job_ids"]
+
+    async def test_success_with_params(self):
+        jobs_ns = MagicMock()
+        mock_job = MagicMock()
+        mock_job.job_id = 43
+
+        async def _submit(*args: Any, **kwargs: Any) -> list:
+            return [mock_job]
+
+        jobs_ns.submit_jdl_jobs = AsyncMock(side_effect=_submit)
+        mock_cls = _make_mock_client(jobs_ns)
+
+        with patch("dirac_mcp.tools.jobs.AsyncDiracClient", mock_cls):
+            result = await submit_job(executable="/bin/echo", arguments="hello world")
+
+        assert result["success"] is True
+        assert 43 in result["job_ids"]
+        assert 'Executable = "/bin/echo";' in result["jdl"]
+        assert 'Arguments = "hello world";' in result["jdl"]
+
+    async def test_missing_jdl_and_executable(self):
+        result = await submit_job()
+        assert result["success"] is False
+        assert "executable" in result["error"].lower()
 
     async def test_api_error(self):
         jobs_ns = MagicMock()
@@ -453,22 +476,3 @@ class TestRescheduleJobs:
 
         assert result["success"] is True
         assert result["data"] == [123, 456]
-
-
-@pytest.mark.asyncio
-class TestGetJobMetadata:
-    async def test_success(self):
-        jobs_ns = MagicMock()
-        jobs_ns.search = AsyncMock(
-            side_effect=_search_side_effect(
-                [{"JobID": 100, "Status": "Done"}, {"JobID": 101, "Status": "Failed"}],
-                "jobs 0-1/2",
-            )
-        )
-        mock_cls = _make_mock_client(jobs_ns)
-
-        with patch("dirac_mcp.tools.jobs.AsyncDiracClient", mock_cls):
-            result = await get_job_metadata(job_ids=[100, 101])
-
-        assert result["success"] is True
-        assert len(result["data"]) == 2

@@ -26,9 +26,9 @@ class TestServerInstantiation:
         assert "search_jobs" in tool_names
         assert "get_job" in tool_names
         assert "submit_job" in tool_names
-        assert "create_basic_jdl" in tool_names
         assert "get_job_status_summary" in tool_names
         assert "get_job_sandboxes" in tool_names
         assert "set_job_statuses" in tool_names
         assert "reschedule_jobs" in tool_names
-        assert "get_job_metadata" in tool_names
+        assert "create_basic_jdl" not in tool_names
+        assert "get_job_metadata" not in tool_names

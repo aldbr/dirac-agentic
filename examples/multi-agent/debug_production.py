@@ -15,7 +15,7 @@ Architecture::
 
 Uses any OpenAI-compatible inference endpoint (HuggingFace by default).
 
-Environment variables:
+Environment variables (common defaults):
     LLM_BASE_URL:        OpenAI-compatible API base URL
                          (default: https://router.huggingface.co/v1)
     LLM_API_KEY:         API key for the LLM provider (default: $HF_TOKEN)
@@ -26,6 +26,11 @@ Environment variables:
                          (default: pixi run -e dirac-mcp dirac-mcp)
     LBAPI_MCP_URL:       LbAPI MCP endpoint
                          (default: https://lbap.app.cern.ch/mcp)
+
+Per-agent overrides (fall back to the common LLM_* values above):
+    SUPERVISOR_BASE_URL, SUPERVISOR_API_KEY, SUPERVISOR_MODEL, SUPERVISOR_AUTH_COOKIE
+    DIRACX_AGENT_BASE_URL, DIRACX_AGENT_API_KEY, DIRACX_AGENT_MODEL, DIRACX_AGENT_AUTH_COOKIE
+    LBAPI_AGENT_BASE_URL, LBAPI_AGENT_API_KEY, LBAPI_AGENT_MODEL, LBAPI_AGENT_AUTH_COOKIE
 
 Usage:
     pip install -r requirements.txt
@@ -42,9 +47,9 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from threading import Event, Thread
 from urllib.parse import parse_qs, urlparse
 
+from langchain.agents import create_agent
 from langchain_mcp_adapters.tools import load_mcp_tools
 from langchain_openai import ChatOpenAI
-from langgraph.prebuilt import create_react_agent
 from langgraph_supervisor import create_supervisor
 from mcp import ClientSession
 from mcp.client.auth import OAuthClientProvider, TokenStorage
@@ -66,46 +71,96 @@ LBAPI_MCP_URL = os.environ.get("LBAPI_MCP_URL", "https://lbap.app.cern.ch/mcp")
 OAUTH_CALLBACK_PORT = 19823
 OAUTH_REDIRECT_URI = f"http://localhost:{OAUTH_CALLBACK_PORT}/callback"
 
+
+def _make_model(prefix: str) -> ChatOpenAI:
+    """Create a ChatOpenAI from ``{prefix}_*`` env vars, falling back to ``LLM_*``."""
+    base_url = os.environ.get(f"{prefix}_BASE_URL", LLM_BASE_URL)
+    api_key = os.environ.get(f"{prefix}_API_KEY", LLM_API_KEY)
+    model = os.environ.get(f"{prefix}_MODEL", LLM_MODEL)
+    cookie = os.environ.get(f"{prefix}_AUTH_COOKIE", os.environ.get("LLM_AUTH_COOKIE"))
+
+    kwargs: dict = {}
+    if cookie:
+        import httpx
+
+        kwargs["http_client"] = httpx.Client(headers={"Cookie": f"authservice_session={cookie}"})
+
+    return ChatOpenAI(
+        model=model,
+        base_url=base_url,
+        api_key=api_key or "unused",
+        max_tokens=1024,
+        **kwargs,
+    )
+
+
 # ---------------------------------------------------------------------------
 # Prompts
 # ---------------------------------------------------------------------------
 
 SUPERVISOR_PROMPT = """\
-You are a routing supervisor. Your ONLY job is to delegate tasks to specialist \
-agents by calling the transfer tool. NEVER answer questions yourself. NEVER \
-describe what you would do. ALWAYS immediately call one of these agents:
+You are a routing supervisor for LHCb production debugging. Your job is to \
+delegate the user's request to the right specialist agent by calling a transfer tool.
 
-- transfer_to_lbapi_agent: For anything about productions, samples, CI pipelines, \
-  pipeline failures, MaxReset files, debugging guides, or production-level context.
-- transfer_to_diracx_agent: For anything about individual DIRAC/DiracX jobs \
-  (search, inspect, reschedule, sandboxes, metadata, statuses).
+Routing rules:
+- CI pipeline failures, production status, sample progress, MaxReset files, \
+debugging guides -> call transfer_to_lbapi_agent
+- Individual DIRAC job operations (search, inspect, reschedule, sandboxes) \
+-> call transfer_to_diracx_agent
 
-Workflow: delegate to lbapi_agent first for production context, then diracx_agent \
-for job-level details if needed. After receiving results from agents, provide a \
-clear summary to the user.
+When the user message contains a URL, pass the full message including the URL \
+to the agent. The agent will extract parameters from it.
 
-IMPORTANT: Do NOT write text before delegating. Immediately call the transfer tool.
+Start by delegating to lbapi_agent for production context. Call the transfer \
+tool now.
 """
 
 DIRACX_AGENT_PROMPT = """\
-You are a DIRAC job specialist. You MUST use your tools to answer questions. \
-Do NOT guess or make up information. Call the appropriate tool for every request:
-- search_jobs: find jobs by status, owner, or other filters
-- get_job: get details of a specific job
-- get_job_sandboxes: inspect input/output sandboxes
-- get_job_metadata: get job metadata
-- set_job_statuses: change job statuses
-- reschedule_jobs: reschedule failed jobs
-Always call a tool first, then summarize the results.
+You are a DIRAC job specialist. Use your tools to answer questions.
+
+Tool selection:
+- Find jobs by status, owner, site -> search_jobs(parameter="Status", operator="eq", value="Failed")
+- Get details of one job -> get_job(job_id=12345)
+- Inspect input/output sandboxes -> get_job_sandboxes(job_id=12345)
+- Job status overview -> get_job_status_summary()
+- Submit a job -> submit_job(executable="/bin/echo", arguments="hello world")
+- Kill or delete jobs -> set_job_statuses(job_ids=[12345], status="Killed")
+- Reschedule failed jobs -> reschedule_jobs(job_ids=[12345])
+
+Call the tool first, then summarize the results.
 """
 
 LBAPI_AGENT_PROMPT = """\
-You are an LHCb production specialist. You MUST use your tools to answer \
-questions. Do NOT guess or make up information. Call the appropriate tool for \
-every request — inspect CI pipeline results, sample progress, MaxReset files, \
-debugging guides, or production status. Always call a tool first, then \
-summarize the results.
+You are an LHCb production specialist. Use your tools to answer questions.
+
+When the user provides a pipeline URL like \
+https://lhcb-productions.web.cern.ch/ana-prod/pipelines/?id=26806&ci_run=Lb2D0Dsp_Run3 \
+extract the analysis name from the ci_run parameter: "Lb2D0Dsp_Run3". \
+Then ask yourself which working group (wg) owns that analysis. \
+Example: Lb2D0Dsp_Run3 belongs to wg="B2OC".
+
+Tool selection:
+- Production summary or CI pipeline status -> get_production_summary(wg=..., analysis=...)
+- Sample progress -> get_sample_progress(wg=..., analysis=..., version=..., name=...)
+- MaxReset files -> get_maxreset_files(wg=..., analysis=..., version=..., name=..., transformation_id=...)
+- Job log URL -> get_job_log_url(job_id=...)
+- Explain a sample state string -> explain_sample_state(state=...)
+- Debugging guidance -> get_debugging_guide(scenario=...)
+
+Call the tool first, then summarize the results.
 """
+
+# Tools to keep per agent (None = keep all). Filtering reduces token usage
+# so that small-context models (e.g. Qwen-14B, 16K) don't overflow.
+DIRACX_TOOL_ALLOWLIST: set[str] | None = None  # dirac-mcp has few tools; keep all
+LBAPI_TOOL_ALLOWLIST: set[str] = {
+    "get_production_summary",
+    "get_sample_progress",
+    "get_maxreset_files",
+    "get_job_log_url",
+    "explain_sample_state",
+    "get_debugging_guide",
+}
 
 
 # ---------------------------------------------------------------------------
@@ -215,20 +270,10 @@ async def amain() -> None:
             "Get a HF token at https://huggingface.co/settings/tokens"
         )
 
-    # -- Model -----------------------------------------------------------------
-    kwargs: dict = {}
-    cookie = os.environ.get("LLM_AUTH_COOKIE")
-    if cookie:
-        import httpx
-
-        kwargs["http_client"] = httpx.Client(headers={"Cookie": f"authservice_session={cookie}"})
-    model = ChatOpenAI(
-        model=LLM_MODEL,
-        base_url=LLM_BASE_URL,
-        api_key=LLM_API_KEY or "unused",
-        max_tokens=1024,
-        **kwargs,
-    )
+    # -- Models (per-agent, falling back to common LLM_* defaults) -------------
+    supervisor_model = _make_model("SUPERVISOR")
+    diracx_model = _make_model("DIRACX_AGENT")
+    lbapi_model = _make_model("LBAPI_AGENT")
 
     # -- MCP sessions (kept alive via AsyncExitStack) --------------------------
     async with AsyncExitStack() as stack:
@@ -240,6 +285,8 @@ async def amain() -> None:
         diracx_session = await stack.enter_async_context(ClientSession(*diracx_transport))
         await diracx_session.initialize()
         diracx_tools = await load_mcp_tools(diracx_session)
+        if DIRACX_TOOL_ALLOWLIST is not None:
+            diracx_tools = [t for t in diracx_tools if t.name in DIRACX_TOOL_ALLOWLIST]
 
         # LbAPI MCP (streamable-http with OAuth)
         oauth_provider = _create_oauth_provider(LBAPI_MCP_URL)
@@ -251,26 +298,31 @@ async def amain() -> None:
         )
         await lbapi_session.initialize()
         lbapi_tools = await load_mcp_tools(lbapi_session)
+        if LBAPI_TOOL_ALLOWLIST is not None:
+            lbapi_tools = [t for t in lbapi_tools if t.name in LBAPI_TOOL_ALLOWLIST]
+
+        print(f"  diracx tools: {[t.name for t in diracx_tools]}")
+        print(f"  lbapi tools:  {[t.name for t in lbapi_tools]}")
 
         # -- Agents ----------------------------------------------------------------
-        diracx_agent = create_react_agent(
-            model=model,
+        diracx_agent = create_agent(
+            model=diracx_model,
             tools=diracx_tools,
             name="diracx_agent",
-            prompt=DIRACX_AGENT_PROMPT,
+            system_prompt=DIRACX_AGENT_PROMPT,
         )
 
-        lbapi_agent = create_react_agent(
-            model=model,
+        lbapi_agent = create_agent(
+            model=lbapi_model,
             tools=lbapi_tools,
             name="lbapi_agent",
-            prompt=LBAPI_AGENT_PROMPT,
+            system_prompt=LBAPI_AGENT_PROMPT,
         )
 
         # -- Supervisor ------------------------------------------------------------
         workflow = create_supervisor(
             [diracx_agent, lbapi_agent],
-            model=model,
+            model=supervisor_model,
             prompt=SUPERVISOR_PROMPT,
             output_mode="full_history",
         )
@@ -278,7 +330,11 @@ async def amain() -> None:
 
         # -- Interactive loop ------------------------------------------------------
         print(
-            f"Production Debugging Agent  (model: {LLM_MODEL})\nType a query or 'quit' to exit.\n"
+            f"Production Debugging Agent\n"
+            f"  supervisor : {supervisor_model.model_name}\n"
+            f"  diracx     : {diracx_model.model_name}\n"
+            f"  lbapi      : {lbapi_model.model_name}\n"
+            f"Type a query or 'quit' to exit.\n"
         )
 
         while True:

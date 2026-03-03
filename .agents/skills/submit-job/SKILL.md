@@ -1,10 +1,9 @@
 ---
 name: submit-job
 description: Submit a job to the DIRAC grid computing infrastructure
-version: "1.0"
+version: "2.0"
 tags: [dirac, job, grid, computing]
 tools:
-  - create_basic_jdl
   - submit_job
 ---
 
@@ -20,9 +19,9 @@ tools:
    - Site preference (optional)
    - Resource requirements: memory (MB), CPU time (seconds)
 
-2. **Create the JDL** using the `create_basic_jdl` tool:
+2. **Submit the job** using the `submit_job` tool with the gathered parameters:
    ```
-   create_basic_jdl(
+   submit_job(
        executable="/path/to/script.sh",
        job_name="Descriptive Job Name",
        arguments="--flag value",
@@ -34,13 +33,9 @@ tools:
    )
    ```
 
-3. **Review the JDL** with the user before submission.
+3. **Report the result**: Provide the job ID(s) returned on success.
 
-4. **Submit the job** using the `submit_job` tool with the generated JDL.
-
-5. **Report the result**: Provide the job ID(s) returned on success.
-
-## Common JDL Parameters
+## Common Parameters
 
 | Parameter | Description | Example |
 |-----------|-------------|---------|
@@ -56,12 +51,12 @@ tools:
 
 **Simple echo job:**
 ```
-create_basic_jdl(executable="/bin/echo", arguments="hello world")
+submit_job(executable="/bin/echo", arguments="hello world")
 ```
 
 **Python script with dependencies:**
 ```
-create_basic_jdl(
+submit_job(
     executable="python",
     arguments="analysis.py --input data.root",
     input_sandbox=["analysis.py", "data.root"],
@@ -69,4 +64,9 @@ create_basic_jdl(
     memory=4096,
     max_cpu_time=7200
 )
+```
+
+**Advanced (raw JDL):**
+```
+submit_job(jdl_content='Executable = "/bin/echo";\nArguments = "hello";')
 ```

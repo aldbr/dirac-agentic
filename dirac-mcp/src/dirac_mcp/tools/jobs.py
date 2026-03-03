@@ -220,16 +220,57 @@ async def get_job(job_id: int) -> dict[str, Any]:
         readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=True
     )
 )
-async def submit_job(jdl_content: str) -> dict[str, Any]:
-    """Submit a new job using the provided JDL description.
+async def submit_job(
+    jdl_content: str | None = None,
+    executable: str | None = None,
+    job_name: str = "Auto-generated Job",
+    arguments: str | None = None,
+    input_sandbox: list[str] | None = None,
+    output_sandbox: list[str] | None = None,
+    site: str | None = None,
+    memory: int | None = None,
+    max_cpu_time: int | None = None,
+) -> dict[str, Any]:
+    """Submit a new job to the DIRAC grid.
 
-    Use create_basic_jdl first to generate a valid JDL string, then pass it here.
+    Either provide a raw JDL string via `jdl_content`, or specify job
+    parameters directly (executable, arguments, etc.) and the JDL will be
+    generated automatically.
 
-    Example: submit_job(jdl_content=create_basic_jdl(executable="/bin/echo", arguments="hello"))
+    Examples:
+      - Simple: submit_job(executable="/bin/echo", arguments="hello world")
+      - With sandbox: submit_job(executable="run.sh", input_sandbox=["run.sh", "data.root"],
+            output_sandbox=["output.root", "StdOut", "StdErr"])
+      - Raw JDL: submit_job(jdl_content='Executable = "/bin/echo";\\nArguments = "hello";')
 
     Args:
-        jdl_content: The full JDL content defining the job.
+        jdl_content: A complete JDL string (advanced). If provided, all other params are ignored.
+        executable: The executable to run.
+        job_name: Name of the job.
+        arguments: Command-line arguments for the executable.
+        input_sandbox: List of files to include in the job.
+        output_sandbox: List of files to retrieve after job completion.
+        site: Specific site to run the job on.
+        memory: Memory requirement in MB.
+        max_cpu_time: Maximum CPU time in seconds.
     """
+    if jdl_content is None:
+        if executable is None:
+            return {
+                "success": False,
+                "error": "Either jdl_content or executable must be provided.",
+            }
+        jdl_content = create_basic_jdl(
+            executable=executable,
+            job_name=job_name,
+            arguments=arguments,
+            input_sandbox=input_sandbox,
+            output_sandbox=output_sandbox,
+            site=site,
+            memory=memory,
+            max_cpu_time=max_cpu_time,
+        )
+
     try:
         async with AsyncDiracClient() as client:
             jobs = await client.jobs.submit_jdl_jobs([jdl_content])
@@ -243,7 +284,6 @@ async def submit_job(jdl_content: str) -> dict[str, Any]:
         return {"success": False, "error": str(e), "jdl": jdl_content}
 
 
-@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, openWorldHint=False))
 def create_basic_jdl(
     executable: str,
     job_name: str = "Auto-generated Job",
@@ -254,23 +294,7 @@ def create_basic_jdl(
     memory: int | None = None,
     max_cpu_time: int | None = None,
 ) -> str:
-    """Create a basic JDL file with the given parameters.
-
-    Example: create_basic_jdl(executable="/bin/echo", arguments="hello world", job_name="TestJob")
-
-    Args:
-        executable: The executable to run.
-        job_name: Name of the job.
-        arguments: Command-line arguments for the executable.
-        input_sandbox: List of files to include in the job.
-        output_sandbox: List of files to retrieve after job completion.
-        site: Specific site to run the job on.
-        memory: Memory requirement in MB.
-        max_cpu_time: Maximum CPU time in seconds.
-
-    Returns:
-        A complete JDL string ready to pass to submit_job.
-    """
+    """Create a basic JDL string from structured parameters (internal helper)."""
     if output_sandbox is None:
         output_sandbox = ["StdOut", "StdErr"]
 
@@ -444,34 +468,4 @@ async def reschedule_jobs(
             return {"success": True, "data": result}
     except Exception as e:
         logger.exception("reschedule_jobs failed for job_ids=%s", job_ids)
-        return {"success": False, "error": str(e)}
-
-
-@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, openWorldHint=True))
-async def get_job_metadata(job_ids: list[int]) -> dict[str, Any]:
-    """Get full metadata for one or more jobs.
-
-    Retrieves all available parameters for the specified jobs.
-
-    Example: get_job_metadata(job_ids=[123, 456])
-
-    Args:
-        job_ids: List of job IDs to get metadata for.
-    """
-    try:
-        async with AsyncDiracClient() as client:
-            jobs, _ = await client.jobs.search(
-                search=[
-                    {
-                        "parameter": "JobID",
-                        "operator": VectorSearchOperator.IN,
-                        "values": [str(jid) for jid in job_ids],
-                    }
-                ],
-                cls=lambda _, jobs, headers: (jobs, headers.get("Content-Range", "")),
-            )
-
-            return {"success": True, "data": jobs}
-    except Exception as e:
-        logger.exception("get_job_metadata failed for job_ids=%s", job_ids)
         return {"success": False, "error": str(e)}

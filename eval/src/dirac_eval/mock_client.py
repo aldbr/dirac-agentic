@@ -31,15 +31,11 @@ def _build_mock_jobs(mock_responses: dict[str, MockResponseSpec]) -> MagicMock:
     """Build a mock ``client.jobs`` namespace from scenario responses."""
     jobs = MagicMock()
 
-    # --- search (used by search_jobs, get_job, get_job_metadata) ---
+    # --- search (used by search_jobs, get_job) ---
     # Build a single dispatch function that inspects the ``search=`` kwarg
     # to route to the correct mock data.  This avoids the previous bug where
     # each block overwrote ``jobs.search`` and only the last one won.
-    search_specs = {
-        k: mock_responses[k]
-        for k in ("search_jobs", "get_job", "get_job_metadata")
-        if k in mock_responses
-    }
+    search_specs = {k: mock_responses[k] for k in ("search_jobs", "get_job") if k in mock_responses}
 
     if search_specs:
 
@@ -55,16 +51,6 @@ def _build_mock_jobs(mock_responses: dict[str, MockResponseSpec]) -> MagicMock:
                 and search_arg[0]["operator"].value == "eq"
             ):
                 return _make_search_response(search_specs["get_job"], kwargs)
-
-            # Detect get_job_metadata: single condition, JobID + vector IN operator
-            if (
-                "get_job_metadata" in search_specs
-                and len(search_arg) == 1
-                and search_arg[0].get("parameter") == "JobID"
-                and hasattr(search_arg[0].get("operator"), "value")
-                and search_arg[0]["operator"].value == "in"
-            ):
-                return _make_search_response(search_specs["get_job_metadata"], kwargs)
 
             # Default: search_jobs mock (general search)
             if "search_jobs" in search_specs:
