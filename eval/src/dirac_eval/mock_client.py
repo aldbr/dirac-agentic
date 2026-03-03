@@ -14,62 +14,69 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from dirac_eval.scenario import MockResponseSpec, Scenario
 
 
+def _make_search_response(spec: MockResponseSpec, kwargs: dict[str, Any]) -> Any:
+    """Return mock search data, applying the ``cls`` transform if present."""
+    if spec.side_effect:
+        raise RuntimeError(spec.side_effect)
+    data = spec.return_value
+    cls_fn = kwargs.get("cls")
+    job_list = data.get("jobs", [])
+    content_range = data.get("content_range", "")
+    if cls_fn:
+        return cls_fn(None, job_list, {"Content-Range": content_range})
+    return job_list
+
+
 def _build_mock_jobs(mock_responses: dict[str, MockResponseSpec]) -> MagicMock:
     """Build a mock ``client.jobs`` namespace from scenario responses."""
     jobs = MagicMock()
 
     # --- search (used by search_jobs, get_job, get_job_metadata) ---
-    if "search_jobs" in mock_responses:
-        spec = mock_responses["search_jobs"]
-        search_data = spec.return_value
+    # Build a single dispatch function that inspects the ``search=`` kwarg
+    # to route to the correct mock data.  This avoids the previous bug where
+    # each block overwrote ``jobs.search`` and only the last one won.
+    search_specs = {
+        k: mock_responses[k]
+        for k in ("search_jobs", "get_job", "get_job_metadata")
+        if k in mock_responses
+    }
 
-        async def _search(*args: Any, **kwargs: Any) -> Any:
-            if spec.side_effect:
-                raise RuntimeError(spec.side_effect)
-            # The tools pass cls=lambda to transform the response.
-            cls_fn = kwargs.get("cls")
-            job_list = search_data.get("jobs", [])
-            content_range = search_data.get("content_range", "")
-            if cls_fn:
-                return cls_fn(None, job_list, {"Content-Range": content_range})
-            return job_list
+    if search_specs:
 
-        jobs.search = AsyncMock(side_effect=_search)
+        async def _search_dispatch(*args: Any, **kwargs: Any) -> Any:
+            search_arg = kwargs.get("search", [])
+
+            # Detect get_job: single condition, JobID + scalar operator
+            if (
+                "get_job" in search_specs
+                and len(search_arg) == 1
+                and search_arg[0].get("parameter") == "JobID"
+                and hasattr(search_arg[0].get("operator"), "value")
+                and search_arg[0]["operator"].value == "eq"
+            ):
+                return _make_search_response(search_specs["get_job"], kwargs)
+
+            # Detect get_job_metadata: single condition, JobID + vector IN operator
+            if (
+                "get_job_metadata" in search_specs
+                and len(search_arg) == 1
+                and search_arg[0].get("parameter") == "JobID"
+                and hasattr(search_arg[0].get("operator"), "value")
+                and search_arg[0]["operator"].value == "in"
+            ):
+                return _make_search_response(search_specs["get_job_metadata"], kwargs)
+
+            # Default: search_jobs mock (general search)
+            if "search_jobs" in search_specs:
+                return _make_search_response(search_specs["search_jobs"], kwargs)
+
+            # Fallback: use whichever single mock is defined
+            fallback = next(iter(search_specs.values()))
+            return _make_search_response(fallback, kwargs)
+
+        jobs.search = AsyncMock(side_effect=_search_dispatch)
     else:
         jobs.search = AsyncMock(return_value=[])
-
-    # Allow get_job / get_job_metadata to share the search mock, or override
-    if "get_job" in mock_responses:
-        spec = mock_responses["get_job"]
-        get_job_data = spec.return_value
-
-        async def _search_get_job(*args: Any, **kwargs: Any) -> Any:
-            if spec.side_effect:
-                raise RuntimeError(spec.side_effect)
-            cls_fn = kwargs.get("cls")
-            job_list = get_job_data.get("jobs", [])
-            content_range = get_job_data.get("content_range", "")
-            if cls_fn:
-                return cls_fn(None, job_list, {"Content-Range": content_range})
-            return job_list
-
-        jobs.search = AsyncMock(side_effect=_search_get_job)
-
-    if "get_job_metadata" in mock_responses:
-        spec = mock_responses["get_job_metadata"]
-        meta_data = spec.return_value
-
-        async def _search_metadata(*args: Any, **kwargs: Any) -> Any:
-            if spec.side_effect:
-                raise RuntimeError(spec.side_effect)
-            cls_fn = kwargs.get("cls")
-            job_list = meta_data.get("jobs", [])
-            content_range = meta_data.get("content_range", "")
-            if cls_fn:
-                return cls_fn(None, job_list, {"Content-Range": content_range})
-            return job_list
-
-        jobs.search = AsyncMock(side_effect=_search_metadata)
 
     # --- submit_jdl_jobs (used by submit_job) ---
     if "submit_job" in mock_responses:

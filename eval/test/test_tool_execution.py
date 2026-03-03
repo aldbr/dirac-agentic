@@ -15,32 +15,10 @@ from typing import Any
 import pytest
 from dirac_eval.mock_client import patch_diracx_client
 from dirac_eval.scenario import Scenario
-from dirac_mcp.tools.jobs import (
-    create_basic_jdl,
-    get_job,
-    get_job_metadata,
-    get_job_sandboxes,
-    get_job_status_summary,
-    reschedule_jobs,
-    search_jobs,
-    set_job_statuses,
-    submit_job,
-)
+from dirac_eval.tool_registry import TOOL_REGISTRY
+from dirac_mcp.tools.jobs import create_basic_jdl
 
 SCENARIOS_DIR = Path(__file__).resolve().parent.parent / "scenarios"
-
-# Registry mapping tool name → callable
-TOOL_REGISTRY: dict[str, Any] = {
-    "search_jobs": search_jobs,
-    "get_job": get_job,
-    "submit_job": submit_job,
-    "create_basic_jdl": create_basic_jdl,
-    "get_job_status_summary": get_job_status_summary,
-    "get_job_sandboxes": get_job_sandboxes,
-    "set_job_statuses": set_job_statuses,
-    "reschedule_jobs": reschedule_jobs,
-    "get_job_metadata": get_job_metadata,
-}
 
 
 def _scenario_files() -> list[str]:

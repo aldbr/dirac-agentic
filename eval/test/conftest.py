@@ -2,11 +2,7 @@
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
-
-import pytest
-from dirac_eval.scenario import Scenario, load_scenarios
 
 SCENARIOS_DIR = Path(__file__).resolve().parent.parent / "scenarios"
 
@@ -19,21 +15,3 @@ def scenario_ids() -> list[str]:
 def scenario_files() -> list[Path]:
     """Return sorted list of scenario YAML paths."""
     return sorted(SCENARIOS_DIR.glob("*.yaml"))
-
-
-@pytest.fixture(scope="session")
-def all_scenarios() -> list[Scenario]:
-    """Load every scenario once per session."""
-    return load_scenarios(SCENARIOS_DIR)
-
-
-@pytest.fixture
-def hf_token() -> str | None:
-    """Return the HuggingFace token or None if not set."""
-    return os.environ.get("HF_TOKEN")
-
-
-@pytest.fixture
-def llm_api_key() -> str | None:
-    """Return the LLM API key, falling back to HF_TOKEN."""
-    return os.environ.get("LLM_API_KEY", os.environ.get("HF_TOKEN"))

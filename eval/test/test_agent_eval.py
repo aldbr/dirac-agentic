@@ -33,19 +33,26 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from dirac_mcp.tools.jobs import (
-    create_basic_jdl,
-    get_job,
-    get_job_metadata,
-    get_job_sandboxes,
-    get_job_status_summary,
-    reschedule_jobs,
-    search_jobs,
-    set_job_statuses,
-    submit_job,
-)
+from dirac_eval.tool_registry import TOOL_REGISTRY
 
 SCENARIOS_DIR = Path(__file__).resolve().parent.parent / "scenarios"
+BASELINES_PATH = Path(__file__).resolve().parent.parent / "baselines.json"
+
+
+def _load_baselines() -> dict[str, Any]:
+    """Load baseline scores from baselines.json."""
+    with open(BASELINES_PATH) as f:
+        return json.load(f)
+
+
+def _get_baseline(scenario_stem: str, metric: str) -> float:
+    """Return the baseline score for a scenario/metric, with tolerance applied."""
+    data = _load_baselines()
+    tolerance = data.get("tolerance", 0.1)
+    scenario_baselines = data.get("scenarios", {}).get(scenario_stem, {})
+    baseline = scenario_baselines.get(metric, 0.5)
+    return baseline - tolerance
+
 
 # The agent model must support tool/function calling. The judge model needs
 # structured output (instructor) and can be a different (possibly larger) model.
@@ -140,21 +147,6 @@ async def _get_tool_schemas() -> list[dict[str, Any]]:
 
     _tool_schemas_cache = schemas
     return schemas
-
-
-# --- Tool registry for execution ---
-
-TOOL_REGISTRY: dict[str, Any] = {
-    "search_jobs": search_jobs,
-    "get_job": get_job,
-    "submit_job": submit_job,
-    "create_basic_jdl": create_basic_jdl,
-    "get_job_status_summary": get_job_status_summary,
-    "get_job_sandboxes": get_job_sandboxes,
-    "set_job_statuses": set_job_statuses,
-    "reschedule_jobs": reschedule_jobs,
-    "get_job_metadata": get_job_metadata,
-}
 
 
 async def _execute_tool(name: str, args: dict[str, Any]) -> str:
@@ -364,12 +356,20 @@ async def test_agent_tool_call_accuracy(scenario_file: str) -> None:
         },
     ) as trace:
         with patch_diracx_client(scenario):
-            ragas_trace, _ = await _run_agent_loop(
+            ragas_trace, actual_tool_calls = await _run_agent_loop(
                 scenario.user_input,
                 model=agent_model,
                 api_key=api_key,
                 base_url=base_url,
                 trace=trace,
+            )
+
+        # The agent must actually call tools when the scenario expects them
+        if scenario.expected_tool_calls:
+            assert actual_tool_calls, (
+                f"[{scenario.name}] Agent made 0 tool calls but scenario expects "
+                f"{len(scenario.expected_tool_calls)}. "
+                "Is the model configured for tool/function calling?"
             )
 
         dataset = _build_ragas_dataset(scenario, ragas_trace)
@@ -392,7 +392,10 @@ async def test_agent_tool_call_accuracy(scenario_file: str) -> None:
             comment=f"scenario={scenario.name}",
         )
 
-    assert score >= 0.0, "Score should be non-negative"
+    threshold = _get_baseline(scenario.name, "tool_call_accuracy")
+    assert score >= threshold, (
+        f"[{scenario.name}] ToolCallAccuracy {score:.2f} < baseline threshold {threshold:.2f}"
+    )
 
 
 @pytest.mark.asyncio
@@ -430,12 +433,20 @@ async def test_agent_goal_accuracy(scenario_file: str) -> None:
         },
     ) as trace:
         with patch_diracx_client(scenario):
-            ragas_trace, _ = await _run_agent_loop(
+            ragas_trace, actual_tool_calls = await _run_agent_loop(
                 scenario.user_input,
                 model=agent_model,
                 api_key=api_key,
                 base_url=base_url,
                 trace=trace,
+            )
+
+        # The agent must actually call tools when the scenario expects them
+        if scenario.expected_tool_calls:
+            assert actual_tool_calls, (
+                f"[{scenario.name}] Agent made 0 tool calls but scenario expects "
+                f"{len(scenario.expected_tool_calls)}. "
+                "Is the model configured for tool/function calling?"
             )
 
         judge_llm = _make_judge_llm(judge_model, api_key, base_url, async_client=True)
@@ -452,4 +463,7 @@ async def test_agent_goal_accuracy(scenario_file: str) -> None:
             comment=f"scenario={scenario.name}",
         )
 
-    assert score >= 0.0, "Score should be non-negative"
+    threshold = _get_baseline(scenario.name, "agent_goal_accuracy")
+    assert score >= threshold, (
+        f"[{scenario.name}] AgentGoalAccuracy {score:.2f} < baseline threshold {threshold:.2f}"
+    )

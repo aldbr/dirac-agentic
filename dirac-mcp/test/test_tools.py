@@ -430,6 +430,12 @@ class TestSetJobStatuses:
         assert result["success"] is True
         assert result["data"]["123"] == "Killed"
 
+    async def test_invalid_status_rejected(self):
+        """VALID_USER_STATUSES guard rejects statuses outside the whitelist."""
+        result = await set_job_statuses(job_ids=[123], status="Running")  # type: ignore[arg-type]
+        assert result["success"] is False
+        assert "Invalid status" in result["error"]
+
 
 @pytest.mark.asyncio
 class TestRescheduleJobs:

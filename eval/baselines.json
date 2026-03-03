@@ -1,0 +1,46 @@
+{
+  "_comment": "Baseline RAGAS scores per scenario. Layer 2 tests assert score >= baseline - tolerance. Update intentionally when scores improve.",
+  "tolerance": 0.1,
+  "scenarios": {
+    "debug_job_failed": {
+      "tool_call_accuracy": 0.5,
+      "agent_goal_accuracy": 0.5
+    },
+    "debug_job_not_found": {
+      "tool_call_accuracy": 0.5,
+      "agent_goal_accuracy": 0.5
+    },
+    "debug_job_reschedule": {
+      "tool_call_accuracy": 0.5,
+      "agent_goal_accuracy": 0.5
+    },
+    "debug_job_stalled": {
+      "tool_call_accuracy": 0.5,
+      "agent_goal_accuracy": 0.5
+    },
+    "search_jobs_api_error": {
+      "tool_call_accuracy": 0.5,
+      "agent_goal_accuracy": 0.5
+    },
+    "search_jobs_basic": {
+      "tool_call_accuracy": 0.5,
+      "agent_goal_accuracy": 0.5
+    },
+    "search_jobs_multi_filter": {
+      "tool_call_accuracy": 0.5,
+      "agent_goal_accuracy": 0.5
+    },
+    "search_jobs_status_summary": {
+      "tool_call_accuracy": 0.5,
+      "agent_goal_accuracy": 0.5
+    },
+    "submit_job_simple": {
+      "tool_call_accuracy": 0.5,
+      "agent_goal_accuracy": 0.5
+    },
+    "submit_job_with_sandbox": {
+      "tool_call_accuracy": 0.5,
+      "agent_goal_accuracy": 0.5
+    }
+  }
+}

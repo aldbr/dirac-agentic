@@ -1,6 +1,7 @@
 """Job management tools for the DiracX MCP server."""
 
 import json
+import logging
 import re
 from datetime import UTC, datetime
 from typing import Any, Literal
@@ -23,6 +24,9 @@ VALID_USER_STATUSES = {"Killed", "Deleted"}
 
 SCALAR_OPERATORS = {"eq", "neq", "gt", "lt", "like", "not like", "regex"}
 VECTOR_OPERATORS = {"in", "not in"}
+
+
+logger = logging.getLogger(__name__)
 
 
 class SearchCondition(BaseModel):
@@ -176,6 +180,7 @@ async def search_jobs(
                 "search_specs": search_specs,
             }
     except Exception as e:
+        logger.exception("search_jobs failed")
         return {"success": False, "error": str(e), "search_specs": search_specs}
 
 
@@ -206,6 +211,7 @@ async def get_job(job_id: int) -> dict[str, Any]:
 
             return {"success": True, "data": jobs[0]}  # type: ignore[index]
     except Exception as e:
+        logger.exception("get_job failed for job_id=%s", job_id)
         return {"success": False, "error": str(e)}
 
 
@@ -233,6 +239,7 @@ async def submit_job(jdl_content: str) -> dict[str, Any]:
                 "jdl": jdl_content,
             }
     except Exception as e:
+        logger.exception("submit_job failed")
         return {"success": False, "error": str(e), "jdl": jdl_content}
 
 
@@ -325,6 +332,7 @@ async def get_job_status_summary() -> dict[str, Any]:
                 "status_summary": status_counts,
             }
     except Exception as e:
+        logger.exception("get_job_status_summary failed")
         return {"success": False, "error": str(e)}
 
 
@@ -357,10 +365,12 @@ async def get_job_sandboxes(job_id: int) -> dict[str, Any]:
                             }
                         )
                     except Exception as e:
+                        logger.exception("get_job_sandboxes: failed to resolve pfn=%s", pfn)
                         result[sandbox_type].append({"pfn": pfn, "error": str(e)})
 
             return {"success": True, "job_id": job_id, "sandboxes": result}
     except Exception as e:
+        logger.exception("get_job_sandboxes failed for job_id=%s", job_id)
         return {"success": False, "error": str(e)}
 
 
@@ -404,6 +414,7 @@ async def set_job_statuses(
             result = await client.jobs.set_job_statuses(body=body, force=False)
             return {"success": True, "data": result.as_dict()}
     except Exception as e:
+        logger.exception("set_job_statuses failed for job_ids=%s", job_ids)
         return {"success": False, "error": str(e)}
 
 
@@ -432,6 +443,7 @@ async def reschedule_jobs(
             )
             return {"success": True, "data": result}
     except Exception as e:
+        logger.exception("reschedule_jobs failed for job_ids=%s", job_ids)
         return {"success": False, "error": str(e)}
 
 
@@ -461,4 +473,5 @@ async def get_job_metadata(job_ids: list[int]) -> dict[str, Any]:
 
             return {"success": True, "data": jobs}
     except Exception as e:
+        logger.exception("get_job_metadata failed for job_ids=%s", job_ids)
         return {"success": False, "error": str(e)}
