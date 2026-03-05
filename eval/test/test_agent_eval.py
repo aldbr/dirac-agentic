@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from pathlib import Path
 from typing import Any
 
@@ -167,7 +168,7 @@ async def _run_agent_loop(
     api_key: str,
     base_url: str = DEFAULT_BASE_URL,
     max_turns: int = 10,
-) -> tuple[list[Any], list[dict[str, Any]], dict[str, int]]:
+) -> tuple[list[Any], list[dict[str, Any]], dict[str, float]]:
     """Run a function-calling agent loop using an OpenAI-compatible API.
 
     Args:
@@ -200,40 +201,60 @@ async def _run_agent_loop(
     ragas_trace: list[Any] = [HumanMessage(content=user_input)]
     actual_tool_calls: list[dict[str, Any]] = []
 
-    metrics = {"total_tokens": 0, "call_count": 0}
+    metrics = {"total_tokens": 0.0, "call_count": 0.0}
 
     for turn in range(max_turns):
-        response = client.chat.completions.create(
-            model=model,
-            messages=messages,
-            tools=await _get_tool_schemas(),
-            tool_choice="auto",
-        )
+        turn_start = time.monotonic()
+        tool_schemas = await _get_tool_schemas()
 
-        metrics["call_count"] += 1
-        if response.usage:
-            metrics["total_tokens"] += response.usage.total_tokens
-
-        choice = response.choices[0]
-        assistant_msg: dict[str, Any] = {"role": "assistant", "content": choice.message.content}
-
-        # Log LLM generation to Langfuse
         if langfuse is not None:
+            # Wrap the generation to capture wall-clock duration in Langfuse UI
             with langfuse.start_as_current_observation(
                 name=f"turn-{turn}",
                 as_type="generation",
                 model=model,
                 input=messages,
-                output=choice.message.content or "",
-                usage_details={
-                    "input_tokens": response.usage.prompt_tokens,
-                    "output_tokens": response.usage.completion_tokens,
-                    "total_tokens": response.usage.total_tokens,
-                }
-                if response.usage
-                else None,
-            ):
-                pass
+            ) as generation:
+                response = client.chat.completions.create(
+                    model=model,
+                    messages=messages,
+                    tools=tool_schemas,
+                    tool_choice="auto",
+                )
+                turn_latency = time.monotonic() - turn_start
+                choice = response.choices[0]
+
+                # Update generation with completion details
+                generation.update(
+                    output=choice.message.content or "",
+                    usage_details={
+                        "input_tokens": response.usage.prompt_tokens,
+                        "output_tokens": response.usage.completion_tokens,
+                        "total_tokens": response.usage.total_tokens,
+                    }
+                    if response.usage
+                    else None,
+                )
+                # Add explicit latency metric (score) to the generation
+                langfuse.create_score(
+                    observation_id=generation.id,
+                    name="latency",
+                    value=turn_latency,
+                )
+        else:
+            response = client.chat.completions.create(
+                model=model,
+                messages=messages,
+                tools=tool_schemas,
+                tool_choice="auto",
+            )
+            choice = response.choices[0]
+
+        metrics["call_count"] += 1
+        if response.usage:
+            metrics["total_tokens"] += response.usage.total_tokens
+
+        assistant_msg: dict[str, Any] = {"role": "assistant", "content": choice.message.content}
 
         if choice.message.tool_calls:
             assistant_msg["tool_calls"] = [
@@ -268,17 +289,25 @@ async def _run_agent_loop(
             for tc in choice.message.tool_calls:
                 name = tc.function.name
                 args = json.loads(tc.function.arguments) if tc.function.arguments else {}
-                tool_result = await _execute_tool(name, args)
 
-                # Log tool execution to Langfuse
+                tool_start = time.monotonic()
                 if langfuse is not None:
                     with langfuse.start_as_current_observation(
                         name=f"tool:{name}",
                         as_type="span",
                         input=args,
-                        output=tool_result,
-                    ):
-                        pass
+                    ) as span:
+                        tool_result = await _execute_tool(name, args)
+                        tool_latency = time.monotonic() - tool_start
+                        span.update(output=tool_result)
+                        # Add explicit latency metric for the tool call
+                        langfuse.create_score(
+                            observation_id=span.id,
+                            name="latency",
+                            value=tool_latency,
+                        )
+                else:
+                    tool_result = await _execute_tool(name, args)
 
                 messages.append(
                     {
