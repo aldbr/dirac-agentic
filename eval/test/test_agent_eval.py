@@ -167,7 +167,7 @@ async def _run_agent_loop(
     api_key: str,
     base_url: str = DEFAULT_BASE_URL,
     max_turns: int = 10,
-) -> tuple[list[Any], list[dict[str, Any]]]:
+) -> tuple[list[Any], list[dict[str, Any]], dict[str, int]]:
     """Run a function-calling agent loop using an OpenAI-compatible API.
 
     Args:
@@ -176,7 +176,7 @@ async def _run_agent_loop(
         base_url: OpenAI-compatible API base URL.
 
     Returns:
-        Tuple of (RAGAS message trace, list of actual tool calls).
+        Tuple of (RAGAS message trace, list of actual tool calls, metrics dict).
     """
     from dirac_eval.langfuse_utils import get_langfuse_client
     from ragas.messages import AIMessage, HumanMessage, ToolCall, ToolMessage
@@ -200,6 +200,8 @@ async def _run_agent_loop(
     ragas_trace: list[Any] = [HumanMessage(content=user_input)]
     actual_tool_calls: list[dict[str, Any]] = []
 
+    metrics = {"total_tokens": 0, "call_count": 0}
+
     for turn in range(max_turns):
         response = client.chat.completions.create(
             model=model,
@@ -207,6 +209,10 @@ async def _run_agent_loop(
             tools=await _get_tool_schemas(),
             tool_choice="auto",
         )
+
+        metrics["call_count"] += 1
+        if response.usage:
+            metrics["total_tokens"] += response.usage.total_tokens
 
         choice = response.choices[0]
         assistant_msg: dict[str, Any] = {"role": "assistant", "content": choice.message.content}
@@ -219,6 +225,13 @@ async def _run_agent_loop(
                 model=model,
                 input=messages,
                 output=choice.message.content or "",
+                usage_details={
+                    "input_tokens": response.usage.prompt_tokens,
+                    "output_tokens": response.usage.completion_tokens,
+                    "total_tokens": response.usage.total_tokens,
+                }
+                if response.usage
+                else None,
             ):
                 pass
 
@@ -284,7 +297,7 @@ async def _run_agent_loop(
         # Reached max turns — add final AI message from last response
         ragas_trace.append(AIMessage(content="[max turns reached]"))
 
-    return ragas_trace, actual_tool_calls
+    return ragas_trace, actual_tool_calls, metrics
 
 
 def _build_ragas_dataset(
@@ -360,7 +373,7 @@ async def test_agent_tool_call_accuracy(scenario_file: str) -> None:
         },
     ) as trace:
         with patch_diracx_client(scenario):
-            ragas_trace, actual_tool_calls = await _run_agent_loop(
+            ragas_trace, actual_tool_calls, metrics = await _run_agent_loop(
                 scenario.user_input,
                 model=agent_model,
                 api_key=api_key,
@@ -388,12 +401,25 @@ async def test_agent_tool_call_accuracy(scenario_file: str) -> None:
         score = scores[0]
         print(f"\n[{scenario.name}] ToolCallAccuracy: {score:.2f}")
 
-        push_score(
-            trace_id=trace.trace_id if trace else None,
-            name="ToolCallAccuracy",
-            value=score,
-            comment=f"scenario={scenario.name}",
-        )
+        if trace:
+            push_score(
+                trace_id=trace.trace_id,
+                name="ToolCallAccuracy",
+                value=score,
+                comment=f"scenario={scenario.name}",
+            )
+            push_score(
+                trace_id=trace.trace_id,
+                name="token_count",
+                value=float(metrics["total_tokens"]),
+                comment=f"scenario={scenario.name}",
+            )
+            push_score(
+                trace_id=trace.trace_id,
+                name="llm_call_count",
+                value=float(metrics["call_count"]),
+                comment=f"scenario={scenario.name}",
+            )
 
     threshold = _get_baseline(scenario.name, "tool_call_accuracy")
     assert score >= threshold, (
@@ -436,7 +462,7 @@ async def test_agent_goal_accuracy(scenario_file: str) -> None:
         },
     ) as trace:
         with patch_diracx_client(scenario):
-            ragas_trace, actual_tool_calls = await _run_agent_loop(
+            ragas_trace, actual_tool_calls, metrics = await _run_agent_loop(
                 scenario.user_input,
                 model=agent_model,
                 api_key=api_key,
@@ -458,12 +484,25 @@ async def test_agent_goal_accuracy(scenario_file: str) -> None:
         score = float(result)
         print(f"\n[{scenario.name}] AgentGoalAccuracy: {score:.2f}")
 
-        push_score(
-            trace_id=trace.trace_id if trace else None,
-            name="AgentGoalAccuracy",
-            value=score,
-            comment=f"scenario={scenario.name}",
-        )
+        if trace:
+            push_score(
+                trace_id=trace.trace_id,
+                name="AgentGoalAccuracy",
+                value=score,
+                comment=f"scenario={scenario.name}",
+            )
+            push_score(
+                trace_id=trace.trace_id,
+                name="token_count",
+                value=float(metrics["total_tokens"]),
+                comment=f"scenario={scenario.name}",
+            )
+            push_score(
+                trace_id=trace.trace_id,
+                name="llm_call_count",
+                value=float(metrics["call_count"]),
+                comment=f"scenario={scenario.name}",
+            )
 
     threshold = _get_baseline(scenario.name, "agent_goal_accuracy")
     assert score >= threshold, (
