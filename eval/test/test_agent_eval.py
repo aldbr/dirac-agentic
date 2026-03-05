@@ -347,12 +347,13 @@ def _make_judge_llm(
 @pytest.mark.asyncio
 @pytest.mark.parametrize("scenario_file", _scenario_files())
 async def test_agent_tool_call_accuracy(scenario_file: str) -> None:
-    """Score the agent's tool-calling trace with RAGAS ToolCallAccuracy."""
+    """Score the agent's tool-calling trace with RAGAS ToolCallAccuracy and ToolCallF1."""
     from dirac_eval.langfuse_utils import langfuse_trace, push_score
     from dirac_eval.mock_client import patch_diracx_client
     from dirac_eval.scenario import Scenario
     from ragas import evaluate
     from ragas.metrics._tool_call_accuracy import ToolCallAccuracy
+    from ragas.metrics._tool_call_f1 import ToolCallF1
 
     api_key = _get_api_key()
     assert api_key, "LLM_API_KEY or HF_TOKEN must be set"
@@ -393,19 +394,25 @@ async def test_agent_tool_call_accuracy(scenario_file: str) -> None:
 
         result = evaluate(
             dataset=dataset,
-            metrics=[ToolCallAccuracy()],
+            metrics=[ToolCallAccuracy(), ToolCallF1()],
             llm=judge_llm,
         )
 
-        scores = result["tool_call_accuracy"]  # list of per-sample scores
-        score = scores[0]
-        print(f"\n[{scenario.name}] ToolCallAccuracy: {score:.2f}")
+        score = result["tool_call_accuracy"][0]
+        f1_score = result["tool_call_f1"][0]
+        print(f"\n[{scenario.name}] ToolCallAccuracy: {score:.2f}, ToolCallF1: {f1_score:.2f}")
 
         if trace:
             push_score(
                 trace_id=trace.trace_id,
                 name="ToolCallAccuracy",
                 value=score,
+                comment=f"scenario={scenario.name}",
+            )
+            push_score(
+                trace_id=trace.trace_id,
+                name="ToolCallF1",
+                value=f1_score,
                 comment=f"scenario={scenario.name}",
             )
             push_score(
@@ -430,16 +437,13 @@ async def test_agent_tool_call_accuracy(scenario_file: str) -> None:
 @pytest.mark.asyncio
 @pytest.mark.parametrize("scenario_file", _scenario_files())
 async def test_agent_goal_accuracy(scenario_file: str) -> None:
-    """Score whether the agent achieved the stated goal with RAGAS AgentGoalAccuracy.
-
-    Uses the collections API directly (metric.ascore) since
-    AgentGoalAccuracyWithReference is a BaseMetric, not a legacy Metric,
-    and is incompatible with ragas.evaluate().
-    """
+    """Score agent performance with multiple RAGAS goal-oriented metrics."""
     from dirac_eval.langfuse_utils import langfuse_trace, push_score
     from dirac_eval.mock_client import patch_diracx_client
     from dirac_eval.scenario import Scenario
+    from ragas.metrics._topic_adherence import TopicAdherenceScore
     from ragas.metrics.collections.agent_goal_accuracy import (
+        AgentGoalAccuracyWithoutReference,
         AgentGoalAccuracyWithReference,
     )
 
@@ -477,18 +481,49 @@ async def test_agent_goal_accuracy(scenario_file: str) -> None:
                 "Is the model configured for tool/function calling?"
             )
 
-        judge_llm = _make_judge_llm(judge_model, api_key, base_url, async_client=True)
-        metric = AgentGoalAccuracyWithReference(llm=judge_llm)
+        judge_llm_async = _make_judge_llm(judge_model, api_key, base_url, async_client=True)
 
-        result = await metric.ascore(ragas_trace, reference=scenario.expected_goal)
-        score = float(result)
-        print(f"\n[{scenario.name}] AgentGoalAccuracy: {score:.2f}")
+        # 1. AgentGoalAccuracyWithReference (Requires ground truth)
+        metric_ref = AgentGoalAccuracyWithReference(llm=judge_llm_async)
+        score = float(await metric_ref.ascore(ragas_trace, reference=scenario.expected_goal))
+
+        # 2. AgentGoalAccuracyWithoutReference (Production monitoring)
+        metric_noref = AgentGoalAccuracyWithoutReference(llm=judge_llm_async)
+        score_noref = float(await metric_noref.ascore(ragas_trace))
+
+        # 3. TopicAdherence (Domain check)
+        metric_topic = TopicAdherenceScore(llm=judge_llm_async)
+        # TopicAdherenceScore in this version uses _ascore internally for single-sample evaluation
+        # and requires reference_topics in the row/sample.
+        score_topic = float(
+            await metric_topic._ascore(
+                {"user_input": ragas_trace, "reference_topics": ["DIRAC", "Grid Computing"]},
+                callbacks=[],
+            )
+        )
+
+        print(
+            f"\n[{scenario.name}] AgentGoalAccuracy: {score:.2f} (Ref) / {score_noref:.2f} (No-Ref)"
+        )
+        print(f"[{scenario.name}] TopicAdherence: {score_topic:.2f}")
 
         if trace:
             push_score(
                 trace_id=trace.trace_id,
                 name="AgentGoalAccuracy",
                 value=score,
+                comment=f"scenario={scenario.name}",
+            )
+            push_score(
+                trace_id=trace.trace_id,
+                name="AgentGoalAccuracyWithoutReference",
+                value=score_noref,
+                comment=f"scenario={scenario.name}",
+            )
+            push_score(
+                trace_id=trace.trace_id,
+                name="TopicAdherence",
+                value=score_topic,
                 comment=f"scenario={scenario.name}",
             )
             push_score(
