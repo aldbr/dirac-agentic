@@ -167,7 +167,6 @@ async def _run_agent_loop(
     api_key: str,
     base_url: str = DEFAULT_BASE_URL,
     max_turns: int = 10,
-    trace: Any = None,
 ) -> tuple[list[Any], list[dict[str, Any]]]:
     """Run a function-calling agent loop using an OpenAI-compatible API.
 
@@ -175,14 +174,15 @@ async def _run_agent_loop(
         model: Model name to use for completions.
         api_key: API key for the inference provider.
         base_url: OpenAI-compatible API base URL.
-        trace: Optional Langfuse trace object for logging generations and spans.
 
     Returns:
         Tuple of (RAGAS message trace, list of actual tool calls).
     """
+    from dirac_eval.langfuse_utils import get_langfuse_client
     from ragas.messages import AIMessage, HumanMessage, ToolCall, ToolMessage
 
     client = _make_openai_client(base_url, api_key)
+    langfuse = get_langfuse_client()
 
     messages: list[dict[str, Any]] = [
         {
@@ -212,13 +212,15 @@ async def _run_agent_loop(
         assistant_msg: dict[str, Any] = {"role": "assistant", "content": choice.message.content}
 
         # Log LLM generation to Langfuse
-        if trace is not None:
-            trace.generation(
+        if langfuse is not None:
+            with langfuse.start_as_current_observation(
                 name=f"turn-{turn}",
+                as_type="generation",
                 model=model,
                 input=messages,
                 output=choice.message.content or "",
-            )
+            ):
+                pass
 
         if choice.message.tool_calls:
             assistant_msg["tool_calls"] = [
@@ -256,12 +258,14 @@ async def _run_agent_loop(
                 tool_result = await _execute_tool(name, args)
 
                 # Log tool execution to Langfuse
-                if trace is not None:
-                    trace.span(
+                if langfuse is not None:
+                    with langfuse.start_as_current_observation(
                         name=f"tool:{name}",
+                        as_type="span",
                         input=args,
                         output=tool_result,
-                    )
+                    ):
+                        pass
 
                 messages.append(
                     {
@@ -361,7 +365,6 @@ async def test_agent_tool_call_accuracy(scenario_file: str) -> None:
                 model=agent_model,
                 api_key=api_key,
                 base_url=base_url,
-                trace=trace,
             )
 
         # The agent must actually call tools when the scenario expects them
@@ -438,7 +441,6 @@ async def test_agent_goal_accuracy(scenario_file: str) -> None:
                 model=agent_model,
                 api_key=api_key,
                 base_url=base_url,
-                trace=trace,
             )
 
         # The agent must actually call tools when the scenario expects them
