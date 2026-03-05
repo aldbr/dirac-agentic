@@ -27,7 +27,10 @@ mypy = "*"
 [dependencies]
 python = ">=3.11,<3.13"
 pip = ">=25.1.1"
-
+# Cap packaging for langfuse compatibility (langfuse requires packaging<26.0,
+# but conda-forge defaults to 26.0). See:
+# https://pixi.sh/latest/concepts/conda_pypi/#pinned-package-conflicts
+packaging = ">=23.2,<26.0"
 
 [feature.dirac-mcp.tasks.mcp-dev]
 cmd = "fastmcp dev dirac-mcp/src/dirac_mcp/server.py"

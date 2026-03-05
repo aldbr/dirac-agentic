@@ -235,10 +235,6 @@ Set the following environment variables before running tests:
 | `LANGFUSE_BASE_URL` | If self-hosting | `https://cloud.langfuse.com` | Langfuse server URL |
 
 ```bash
-# Install langfuse in the eval environment (not in pixi.toml due to
-# packaging version conflict with fastmcp)
-pixi run -e eval pip install 'langfuse>=2.0,<3.0'
-
 export LANGFUSE_SECRET_KEY=sk-lf-...
 export LANGFUSE_PUBLIC_KEY=pk-lf-...
 export HF_TOKEN=hf_...

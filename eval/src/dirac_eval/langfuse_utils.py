@@ -29,19 +29,14 @@ def get_langfuse_client() -> Any:
     The ``langfuse`` import is deferred so it only happens when credentials
     are configured. CI never triggers it. Returns a cached singleton.
     """
+    from langfuse import Langfuse
+
     global _langfuse_client
     if _langfuse_client is not None:
         return _langfuse_client
     if not is_langfuse_enabled():
         return None
-    try:
-        from langfuse import Langfuse
-    except ImportError:
-        logger.warning(
-            "LANGFUSE_SECRET_KEY is set but the langfuse package is not installed. "
-            "Install it with: pip install 'langfuse>=2.0,<3.0'"
-        )
-        return None
+
     _langfuse_client = Langfuse()
     return _langfuse_client
 
@@ -55,7 +50,7 @@ def langfuse_trace(name: str, metadata: dict[str, Any] | None = None) -> Generat
     Usage::
 
         with langfuse_trace("test_tool_call_accuracy", metadata={...}) as trace:
-            # trace is a StatefulTraceClient or None
+            # trace is an Observation or None
             ...
     """
     client = get_langfuse_client()
@@ -63,20 +58,14 @@ def langfuse_trace(name: str, metadata: dict[str, Any] | None = None) -> Generat
         yield None
         return
 
-    try:
-        trace = client.trace(name=name, metadata=metadata or {})
-    except Exception:
-        logger.warning("Failed to create Langfuse trace, continuing without tracing", exc_info=True)
-        yield None
-        return
-
-    try:
-        yield trace
-    finally:
+    with client.start_as_current_observation(
+        name=name,
+        metadata=metadata or {},
+    ) as trace:
         try:
+            yield trace
+        finally:
             client.flush()
-        except Exception:
-            logger.warning("Failed to flush Langfuse client", exc_info=True)
 
 
 def push_score(
@@ -91,8 +80,5 @@ def push_score(
     client = get_langfuse_client()
     if client is None:
         return
-    try:
-        client.score(trace_id=trace_id, name=name, value=value, comment=comment)
-        client.flush()
-    except Exception:
-        logger.warning("Failed to push score to Langfuse", exc_info=True)
+    client.create_score(trace_id=trace_id, name=name, value=value, comment=comment)
+    client.flush()

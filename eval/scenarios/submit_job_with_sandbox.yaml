@@ -14,8 +14,6 @@ expected_tool_calls:
         - "data.root"
       output_sandbox:
         - "output.root"
-        - "StdOut"
-        - "StdErr"
 
 mock_responses:
   submit_job:

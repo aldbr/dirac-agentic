@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from pathlib import Path
 from typing import Any
 
@@ -167,22 +168,22 @@ async def _run_agent_loop(
     api_key: str,
     base_url: str = DEFAULT_BASE_URL,
     max_turns: int = 10,
-    trace: Any = None,
-) -> tuple[list[Any], list[dict[str, Any]]]:
+) -> tuple[list[Any], list[dict[str, Any]], dict[str, float]]:
     """Run a function-calling agent loop using an OpenAI-compatible API.
 
     Args:
         model: Model name to use for completions.
         api_key: API key for the inference provider.
         base_url: OpenAI-compatible API base URL.
-        trace: Optional Langfuse trace object for logging generations and spans.
 
     Returns:
-        Tuple of (RAGAS message trace, list of actual tool calls).
+        Tuple of (RAGAS message trace, list of actual tool calls, metrics dict).
     """
+    from dirac_eval.langfuse_utils import get_langfuse_client
     from ragas.messages import AIMessage, HumanMessage, ToolCall, ToolMessage
 
     client = _make_openai_client(base_url, api_key)
+    langfuse = get_langfuse_client()
 
     messages: list[dict[str, Any]] = [
         {
@@ -200,25 +201,60 @@ async def _run_agent_loop(
     ragas_trace: list[Any] = [HumanMessage(content=user_input)]
     actual_tool_calls: list[dict[str, Any]] = []
 
+    metrics = {"total_tokens": 0.0, "call_count": 0.0}
+
     for turn in range(max_turns):
-        response = client.chat.completions.create(
-            model=model,
-            messages=messages,
-            tools=await _get_tool_schemas(),
-            tool_choice="auto",
-        )
+        turn_start = time.monotonic()
+        tool_schemas = await _get_tool_schemas()
 
-        choice = response.choices[0]
-        assistant_msg: dict[str, Any] = {"role": "assistant", "content": choice.message.content}
-
-        # Log LLM generation to Langfuse
-        if trace is not None:
-            trace.generation(
+        if langfuse is not None:
+            # Wrap the generation to capture wall-clock duration in Langfuse UI
+            with langfuse.start_as_current_observation(
                 name=f"turn-{turn}",
+                as_type="generation",
                 model=model,
                 input=messages,
-                output=choice.message.content or "",
+            ) as generation:
+                response = client.chat.completions.create(
+                    model=model,
+                    messages=messages,
+                    tools=tool_schemas,
+                    tool_choice="auto",
+                )
+                turn_latency = time.monotonic() - turn_start
+                choice = response.choices[0]
+
+                # Update generation with completion details
+                generation.update(
+                    output=choice.message.content or "",
+                    usage_details={
+                        "input_tokens": response.usage.prompt_tokens,
+                        "output_tokens": response.usage.completion_tokens,
+                        "total_tokens": response.usage.total_tokens,
+                    }
+                    if response.usage
+                    else None,
+                )
+                # Add explicit latency metric (score) to the generation
+                langfuse.create_score(
+                    observation_id=generation.id,
+                    name="latency",
+                    value=turn_latency,
+                )
+        else:
+            response = client.chat.completions.create(
+                model=model,
+                messages=messages,
+                tools=tool_schemas,
+                tool_choice="auto",
             )
+            choice = response.choices[0]
+
+        metrics["call_count"] += 1
+        if response.usage:
+            metrics["total_tokens"] += response.usage.total_tokens
+
+        assistant_msg: dict[str, Any] = {"role": "assistant", "content": choice.message.content}
 
         if choice.message.tool_calls:
             assistant_msg["tool_calls"] = [
@@ -253,15 +289,25 @@ async def _run_agent_loop(
             for tc in choice.message.tool_calls:
                 name = tc.function.name
                 args = json.loads(tc.function.arguments) if tc.function.arguments else {}
-                tool_result = await _execute_tool(name, args)
 
-                # Log tool execution to Langfuse
-                if trace is not None:
-                    trace.span(
+                tool_start = time.monotonic()
+                if langfuse is not None:
+                    with langfuse.start_as_current_observation(
                         name=f"tool:{name}",
+                        as_type="span",
                         input=args,
-                        output=tool_result,
-                    )
+                    ) as span:
+                        tool_result = await _execute_tool(name, args)
+                        tool_latency = time.monotonic() - tool_start
+                        span.update(output=tool_result)
+                        # Add explicit latency metric for the tool call
+                        langfuse.create_score(
+                            observation_id=span.id,
+                            name="latency",
+                            value=tool_latency,
+                        )
+                else:
+                    tool_result = await _execute_tool(name, args)
 
                 messages.append(
                     {
@@ -280,7 +326,7 @@ async def _run_agent_loop(
         # Reached max turns — add final AI message from last response
         ragas_trace.append(AIMessage(content="[max turns reached]"))
 
-    return ragas_trace, actual_tool_calls
+    return ragas_trace, actual_tool_calls, metrics
 
 
 def _build_ragas_dataset(
@@ -330,12 +376,13 @@ def _make_judge_llm(
 @pytest.mark.asyncio
 @pytest.mark.parametrize("scenario_file", _scenario_files())
 async def test_agent_tool_call_accuracy(scenario_file: str) -> None:
-    """Score the agent's tool-calling trace with RAGAS ToolCallAccuracy."""
+    """Score the agent's tool-calling trace with RAGAS ToolCallAccuracy and ToolCallF1."""
     from dirac_eval.langfuse_utils import langfuse_trace, push_score
     from dirac_eval.mock_client import patch_diracx_client
     from dirac_eval.scenario import Scenario
     from ragas import evaluate
     from ragas.metrics._tool_call_accuracy import ToolCallAccuracy
+    from ragas.metrics._tool_call_f1 import ToolCallF1
 
     api_key = _get_api_key()
     assert api_key, "LLM_API_KEY or HF_TOKEN must be set"
@@ -356,12 +403,11 @@ async def test_agent_tool_call_accuracy(scenario_file: str) -> None:
         },
     ) as trace:
         with patch_diracx_client(scenario):
-            ragas_trace, actual_tool_calls = await _run_agent_loop(
+            ragas_trace, actual_tool_calls, metrics = await _run_agent_loop(
                 scenario.user_input,
                 model=agent_model,
                 api_key=api_key,
                 base_url=base_url,
-                trace=trace,
             )
 
         # The agent must actually call tools when the scenario expects them
@@ -377,20 +423,39 @@ async def test_agent_tool_call_accuracy(scenario_file: str) -> None:
 
         result = evaluate(
             dataset=dataset,
-            metrics=[ToolCallAccuracy()],
+            metrics=[ToolCallAccuracy(), ToolCallF1()],
             llm=judge_llm,
         )
 
-        scores = result["tool_call_accuracy"]  # list of per-sample scores
-        score = scores[0]
-        print(f"\n[{scenario.name}] ToolCallAccuracy: {score:.2f}")
+        score = result["tool_call_accuracy"][0]
+        f1_score = result["tool_call_f1"][0]
+        print(f"\n[{scenario.name}] ToolCallAccuracy: {score:.2f}, ToolCallF1: {f1_score:.2f}")
 
-        push_score(
-            trace_id=trace.trace_id if trace else None,
-            name="ToolCallAccuracy",
-            value=score,
-            comment=f"scenario={scenario.name}",
-        )
+        if trace:
+            push_score(
+                trace_id=trace.trace_id,
+                name="ToolCallAccuracy",
+                value=score,
+                comment=f"scenario={scenario.name}",
+            )
+            push_score(
+                trace_id=trace.trace_id,
+                name="ToolCallF1",
+                value=f1_score,
+                comment=f"scenario={scenario.name}",
+            )
+            push_score(
+                trace_id=trace.trace_id,
+                name="token_count",
+                value=float(metrics["total_tokens"]),
+                comment=f"scenario={scenario.name}",
+            )
+            push_score(
+                trace_id=trace.trace_id,
+                name="llm_call_count",
+                value=float(metrics["call_count"]),
+                comment=f"scenario={scenario.name}",
+            )
 
     threshold = _get_baseline(scenario.name, "tool_call_accuracy")
     assert score >= threshold, (
@@ -401,16 +466,13 @@ async def test_agent_tool_call_accuracy(scenario_file: str) -> None:
 @pytest.mark.asyncio
 @pytest.mark.parametrize("scenario_file", _scenario_files())
 async def test_agent_goal_accuracy(scenario_file: str) -> None:
-    """Score whether the agent achieved the stated goal with RAGAS AgentGoalAccuracy.
-
-    Uses the collections API directly (metric.ascore) since
-    AgentGoalAccuracyWithReference is a BaseMetric, not a legacy Metric,
-    and is incompatible with ragas.evaluate().
-    """
+    """Score agent performance with multiple RAGAS goal-oriented metrics."""
     from dirac_eval.langfuse_utils import langfuse_trace, push_score
     from dirac_eval.mock_client import patch_diracx_client
     from dirac_eval.scenario import Scenario
+    from ragas.metrics._topic_adherence import TopicAdherenceScore
     from ragas.metrics.collections.agent_goal_accuracy import (
+        AgentGoalAccuracyWithoutReference,
         AgentGoalAccuracyWithReference,
     )
 
@@ -433,12 +495,11 @@ async def test_agent_goal_accuracy(scenario_file: str) -> None:
         },
     ) as trace:
         with patch_diracx_client(scenario):
-            ragas_trace, actual_tool_calls = await _run_agent_loop(
+            ragas_trace, actual_tool_calls, metrics = await _run_agent_loop(
                 scenario.user_input,
                 model=agent_model,
                 api_key=api_key,
                 base_url=base_url,
-                trace=trace,
             )
 
         # The agent must actually call tools when the scenario expects them
@@ -449,19 +510,63 @@ async def test_agent_goal_accuracy(scenario_file: str) -> None:
                 "Is the model configured for tool/function calling?"
             )
 
-        judge_llm = _make_judge_llm(judge_model, api_key, base_url, async_client=True)
-        metric = AgentGoalAccuracyWithReference(llm=judge_llm)
+        judge_llm_async = _make_judge_llm(judge_model, api_key, base_url, async_client=True)
 
-        result = await metric.ascore(ragas_trace, reference=scenario.expected_goal)
-        score = float(result)
-        print(f"\n[{scenario.name}] AgentGoalAccuracy: {score:.2f}")
+        # 1. AgentGoalAccuracyWithReference (Requires ground truth)
+        metric_ref = AgentGoalAccuracyWithReference(llm=judge_llm_async)
+        score = float(await metric_ref.ascore(ragas_trace, reference=scenario.expected_goal))
 
-        push_score(
-            trace_id=trace.trace_id if trace else None,
-            name="AgentGoalAccuracy",
-            value=score,
-            comment=f"scenario={scenario.name}",
+        # 2. AgentGoalAccuracyWithoutReference (Production monitoring)
+        metric_noref = AgentGoalAccuracyWithoutReference(llm=judge_llm_async)
+        score_noref = float(await metric_noref.ascore(ragas_trace))
+
+        # 3. TopicAdherence (Domain check)
+        metric_topic = TopicAdherenceScore(llm=judge_llm_async)
+        # TopicAdherenceScore in this version uses _ascore internally for single-sample evaluation
+        # and requires reference_topics in the row/sample.
+        score_topic = float(
+            await metric_topic._ascore(
+                {"user_input": ragas_trace, "reference_topics": ["DIRAC", "Grid Computing"]},
+                callbacks=[],
+            )
         )
+
+        print(
+            f"\n[{scenario.name}] AgentGoalAccuracy: {score:.2f} (Ref) / {score_noref:.2f} (No-Ref)"
+        )
+        print(f"[{scenario.name}] TopicAdherence: {score_topic:.2f}")
+
+        if trace:
+            push_score(
+                trace_id=trace.trace_id,
+                name="AgentGoalAccuracy",
+                value=score,
+                comment=f"scenario={scenario.name}",
+            )
+            push_score(
+                trace_id=trace.trace_id,
+                name="AgentGoalAccuracyWithoutReference",
+                value=score_noref,
+                comment=f"scenario={scenario.name}",
+            )
+            push_score(
+                trace_id=trace.trace_id,
+                name="TopicAdherence",
+                value=score_topic,
+                comment=f"scenario={scenario.name}",
+            )
+            push_score(
+                trace_id=trace.trace_id,
+                name="token_count",
+                value=float(metrics["total_tokens"]),
+                comment=f"scenario={scenario.name}",
+            )
+            push_score(
+                trace_id=trace.trace_id,
+                name="llm_call_count",
+                value=float(metrics["call_count"]),
+                comment=f"scenario={scenario.name}",
+            )
 
     threshold = _get_baseline(scenario.name, "agent_goal_accuracy")
     assert score >= threshold, (
